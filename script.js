@@ -1,10 +1,14 @@
 let participantes = [];
 let partidos = [];
 let grupos = { A: [], B: [] };
+let MAX_JUGADORES = 18; // Valor inicial
 
-// --- 1. GESTIÓN DE PARTICIPANTES ---
+// --- 1. CONFIGURACIÓN Y GESTIÓN DE PARTICIPANTES ---
 
 function cargarDatos() {
+    const max = localStorage.getItem('maxJugadores');
+    if (max) MAX_JUGADORES = parseInt(max);
+
     const p = localStorage.getItem('participantes');
     const pa = localStorage.getItem('partidos');
     const g = localStorage.getItem('grupos');
@@ -13,19 +17,47 @@ function cargarDatos() {
     if (pa) partidos = JSON.parse(pa);
     if (g) grupos = JSON.parse(g);
 
+    document.getElementById('max-jugadores-input').value = MAX_JUGADORES;
     actualizarIU();
-    if (participantes.length === 18 && grupos.A.length === 9) {
+    if (participantes.length === MAX_JUGADORES && grupos.A.length > 0) {
         document.getElementById('grupos-fixture').style.display = 'block';
         document.getElementById('ranking-finales').style.display = 'block';
+        generarGruposHTML();
         generarPartidosHTML();
         actualizarRankingYFinales();
     }
 }
 
 function guardarDatos() {
+    localStorage.setItem('maxJugadores', MAX_JUGADORES);
     localStorage.setItem('participantes', JSON.stringify(participantes));
     localStorage.setItem('partidos', JSON.stringify(partidos));
     localStorage.setItem('grupos', JSON.stringify(grupos));
+}
+
+function configurarMaxJugadores() {
+    const input = document.getElementById('max-jugadores-input');
+    const nuevoMax = parseInt(input.value);
+
+    if (nuevoMax < 2 || nuevoMax % 2 !== 0) {
+        alert("El número de jugadores debe ser par (2, 4, 6, 8...).");
+        return;
+    }
+    
+    if (participantes.length > nuevoMax) {
+        alert(`Ya hay ${participantes.length} jugadores. El nuevo máximo debe ser mayor o igual.`);
+        input.value = MAX_JUGADORES; // Revierte el valor en el input
+        return;
+    }
+
+    MAX_JUGADORES = nuevoMax;
+    // Limpia datos si el torneo ya había iniciado pero se cambia el max
+    partidos = [];
+    grupos = { A: [], B: [] };
+    
+    guardarDatos();
+    actualizarIU();
+    alert(`Torneo configurado para ${MAX_JUGADORES} jugadores.`);
 }
 
 function actualizarIU() {
@@ -37,14 +69,17 @@ function actualizarIU() {
         lista.appendChild(li);
     });
 
+    document.getElementById('max-jugadores-actual').textContent = MAX_JUGADORES;
+    document.getElementById('max-participantes-display').textContent = MAX_JUGADORES;
     document.getElementById('contador-participantes').textContent = participantes.length;
+    
     const btnIniciar = document.getElementById('btn-iniciar');
-    if (participantes.length === 18) {
+    if (participantes.length === MAX_JUGADORES && MAX_JUGADORES > 0) {
         btnIniciar.disabled = false;
         btnIniciar.textContent = '¡Iniciar Torneo!';
     } else {
         btnIniciar.disabled = true;
-        btnIniciar.textContent = `Iniciar Torneo (Necesita ${18 - participantes.length} más)`;
+        btnIniciar.textContent = `Iniciar Torneo (Necesita ${MAX_JUGADORES - participantes.length} más)`;
     }
 }
 
@@ -52,52 +87,94 @@ function agregarParticipante() {
     const input = document.getElementById('nombre-input');
     const nombre = input.value.trim();
 
-    if (nombre && participantes.length < 18 && !participantes.includes(nombre)) {
+    if (nombre && participantes.length < MAX_JUGADORES && !participantes.includes(nombre)) {
         participantes.push(nombre);
         input.value = '';
         guardarDatos();
         actualizarIU();
-    } else if (participantes.length >= 18) {
-        alert("Ya se han añadido 18 participantes.");
+    } else if (participantes.length >= MAX_JUGADORES) {
+        alert(`Ya se han añadido el máximo de ${MAX_JUGADORES} participantes.`);
     }
 }
 
 // --- 2. GENERACIÓN DE GRUPOS Y FIXTURE ---
 
 function generarFixture(grupo) {
-    const n = 9;
+    const n = grupo.length;
+    if (n === 0) return [];
+    
+    // Si el número de jugadores es par, se usa el algoritmo de círculo (N-1 rondas)
+    // Si el número de jugadores es impar, se usa el algoritmo de descanso (N rondas)
+    const isImpar = n % 2 !== 0;
     const fixture = [];
-    const jugadores = [...grupo];
+    let jugadores = [...grupo];
 
-    // Algoritmo de Rotación para número impar (9 jugadores)
-    for (let r = 0; r < n; r++) {
-        for (let i = 0; i < (n - 1) / 2; i++) {
+    if (!isImpar) {
+        // Añadir jugador "fantasma" para que el algoritmo funcione
+        jugadores.push('BYE');
+    }
+    const totalRondas = isImpar ? n : n - 1;
+    const numJugadoresRotacion = jugadores.length;
+    
+    for (let r = 0; r < totalRondas; r++) {
+        for (let i = 0; i < numJugadoresRotacion / 2; i++) {
             const j1 = jugadores[i];
-            const j2 = jugadores[n - 2 - i];
-            
-            // Añadir solo si el partido no existe ya (para evitar duplicados en el ciclo)
-            if (!fixture.find(p => (p.j1 === j1 && p.j2 === j2) || (p.j1 === j2 && p.j2 === j1))) {
-                 fixture.push({ j1: j1, j2: j2, grupo: grupo === grupos.A ? 'A' : 'B' });
+            const j2 = jugadores[numJugadoresRotacion - 1 - i];
+
+            // Solo registramos partidos si no involucra al "BYE"
+            if (j1 !== 'BYE' && j2 !== 'BYE') {
+                // Verificar que el partido no se haya generado ya (para asegurar)
+                if (!fixture.find(p => (p.j1 === j1 && p.j2 === j2) || (p.j1 === j2 && p.j2 === j1))) {
+                    fixture.push({ j1: j1, j2: j2, grupo: grupo === grupos.A ? 'A' : 'B' });
+                }
             }
         }
-        // Rotar los jugadores, dejando el último (jugador 9) quieto y rotando el resto
-        const ultimo = jugadores.pop();
-        jugadores.splice(1, 0, ultimo);
+        
+        // Rotar (dejar el primer elemento fijo si es par, o el último si es impar y se añadió BYE)
+        if (!isImpar) { // Caso Par (rotar todo menos el primero)
+            const ultimo = jugadores.pop();
+            jugadores.splice(1, 0, ultimo);
+        } else { // Caso Impar (rotar todo excepto el jugador que descansa en cada ronda, si no se usa BYE)
+            const ultimo = jugadores.pop();
+            jugadores.unshift(ultimo);
+        }
     }
-
     return fixture;
 }
 
+function generarGruposHTML() {
+    const contenedor = document.getElementById('grupos-container');
+    contenedor.innerHTML = '';
+    
+    // Generar HTML dinámicamente para los grupos
+    for (const grupoKey in grupos) {
+        const grupo = grupos[grupoKey];
+        if (grupo.length > 0) {
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <h3>Grupo ${grupoKey}</h3>
+                <div id="grupo-${grupoKey.toLowerCase()}-list" class="grupo-box">
+                    <ul>
+                        ${grupo.map(j => `<li>${j}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+            contenedor.appendChild(div);
+        }
+    }
+}
+
 function iniciarTorneo() {
-    if (participantes.length !== 18) {
-        alert("El torneo requiere exactamente 18 jugadores.");
+    if (participantes.length !== MAX_JUGADORES) {
+        alert(`El torneo requiere exactamente ${MAX_JUGADORES} jugadores.`);
         return;
     }
 
-    // Mezclar y dividir en 2 grupos
+    // Mezclar y dividir en 2 grupos iguales
     const mezclados = participantes.sort(() => Math.random() - 0.5);
-    grupos.A = mezclados.slice(0, 9);
-    grupos.B = mezclados.slice(9, 18);
+    const mitad = MAX_JUGADORES / 2;
+    grupos.A = mezclados.slice(0, mitad);
+    grupos.B = mezclados.slice(mitad, MAX_JUGADORES);
 
     // Generar el fixture completo
     partidos = generarFixture(grupos.A).concat(generarFixture(grupos.B));
@@ -108,13 +185,11 @@ function iniciarTorneo() {
 
     guardarDatos();
     document.getElementById('registro').style.display = 'none';
+    document.getElementById('configuracion').style.display = 'none';
     document.getElementById('grupos-fixture').style.display = 'block';
     document.getElementById('ranking-finales').style.display = 'block';
     
-    // Mostrar grupos en el HTML
-    document.getElementById('grupo-a-list').innerHTML = grupos.A.map(j => `<li>${j}</li>`).join('');
-    document.getElementById('grupo-b-list').innerHTML = grupos.B.map(j => `<li>${j}</li>`).join('');
-    
+    generarGruposHTML();
     generarPartidosHTML();
     actualizarRankingYFinales();
 }
@@ -145,7 +220,7 @@ function registrarResultado(index) {
     const g1 = parseInt(document.getElementById(`g1-${index}`).value);
     const g2 = parseInt(document.getElementById(`g2-${index}`).value);
 
-    // Validación básica: deben haber ganado al menos 8 games
+    // Validación según la regla: el ganador debe tener al menos 8 games
     if (isNaN(g1) || isNaN(g2) || (g1 < 8 && g2 < 8)) {
         alert("Resultado inválido. El ganador debe tener al menos 8 games (Ej: 8-6, 8-7).");
         return;
@@ -168,21 +243,18 @@ function calcularRanking(grupo) {
         puntos: 0,
         victorias: 0,
         gamesFavor: 0,
-        gamesContra: 0,
-        juegosDirectos: [] // Para head-to-head
+        gamesContra: 0
     }));
 
     partidos.filter(p => p.grupo === (grupo === grupos.A ? 'A' : 'B') && p.gamesJ1 !== null).forEach(p => {
         const r1 = rankingData.find(r => r.nombre === p.j1);
         const r2 = rankingData.find(r => r.nombre === p.j2);
 
-        // Games
+        // Games y Puntos por Games (10 puntos/game)
         r1.gamesFavor += p.gamesJ1;
         r1.gamesContra += p.gamesJ2;
         r2.gamesFavor += p.gamesJ2;
         r2.gamesContra += p.gamesJ1;
-
-        // Puntos por Games (10 puntos/game)
         r1.puntos += p.gamesJ1 * 10;
         r2.puntos += p.gamesJ2 * 10;
 
@@ -190,13 +262,9 @@ function calcularRanking(grupo) {
         if (p.gamesJ1 > p.gamesJ2) {
             r1.puntos += 100;
             r1.victorias += 1;
-            r1.juegosDirectos.push({ oponente: p.j2, resultado: 'ganó' });
-            r2.juegosDirectos.push({ oponente: p.j1, resultado: 'perdió' });
         } else if (p.gamesJ2 > p.gamesJ1) {
             r2.puntos += 100;
             r2.victorias += 1;
-            r2.juegosDirectos.push({ oponente: p.j1, resultado: 'ganó' });
-            r1.juegosDirectos.push({ oponente: p.j2, resultado: 'perdió' });
         }
     });
 
@@ -205,7 +273,6 @@ function calcularRanking(grupo) {
         // 1. Puntos Totales
         if (b.puntos !== a.puntos) return b.puntos - a.puntos;
 
-        // Desempate (solo se puede aplicar si la lógica Head-to-Head fuera más compleja)
         // 2. Diferencia de Games
         const diffA = a.gamesFavor - a.gamesContra;
         const diffB = b.gamesFavor - b.gamesContra;
@@ -220,12 +287,14 @@ function calcularRanking(grupo) {
 
 function mostrarRanking(ranking, tablaId) {
     const tabla = document.getElementById(tablaId);
+    if (!tabla) return;
+    
     tabla.innerHTML = `
         <tr>
             <th>Pos.</th>
             <th>Jugador</th>
             <th>Puntos</th>
-            <th>Victorias</th>
+            <th>Vics</th>
             <th>G-Favor</th>
             <th>G-Contra</th>
             <th>Dif.</th>
@@ -253,10 +322,22 @@ function actualizarRankingYFinales() {
     const rankingA = calcularRanking(grupos.A);
     const rankingB = calcularRanking(grupos.B);
 
+    const rankingsContainer = document.getElementById('rankings-container');
+    rankingsContainer.innerHTML = `
+        <div>
+            <h3>Ranking Grupo A</h3>
+            <table id="ranking-a" class="ranking-table"></table>
+        </div>
+        <div>
+            <h3>Ranking Grupo B</h3>
+            <table id="ranking-b" class="ranking-table"></table>
+        </div>
+    `;
+
     mostrarRanking(rankingA, 'ranking-a');
     mostrarRanking(rankingB, 'ranking-b');
     
-    // Generar Playoffs (requiere que la tabla tenga al menos 2 jugadores con datos)
+    // Generar Playoffs solo si los grupos tienen jugadores
     if (rankingA.length >= 2 && rankingB.length >= 2) {
         generarPlayoffs(rankingA, rankingB);
     }
@@ -271,16 +352,15 @@ function generarPlayoffs(rA, rB) {
     const divPlayoffs = document.getElementById('playoffs');
     divPlayoffs.innerHTML = `
         <h4>Semifinales:</h4>
-        <p>SF1: <strong>${a1}</strong> vs <strong>${b2}</strong></p>
-        <p>SF2: <strong>${b1}</strong> vs <strong>${a2}</strong></p>
+        <p>SF1: **${a1}** vs **${b2}**</p>
+        <p>SF2: **${b1}** vs **${a2}**</p>
         
-        <h4>Finales:</h4>
-        <p>Pendiente de resultados de Semifinales...</p>
+        <p>Para simplificar la gestión en la web, el organizador debe registrar manualmente los resultados de estas Semifinales para definir el 1er, 2do, 3ro y 4to puesto.</p>
         
-        <p>Para simplificar, registre manualmente el resultado de las Semifinales para definir los 4 finalistas.</p>
+        <h4>Cruces Finales:</h4>
+        <p>3er Lugar: Perdedor SF1 vs Perdedor SF2</p>
+        <p>Final (1er Lugar): Ganador SF1 vs Ganador SF2</p>
     `;
-    // Nota: La gestión completa de la fase final con registro de resultados es compleja.
-    // Esta versión muestra los cruces y deja al organizador registrar la Final y el 3er/4to puesto.
 }
 
 // Cargar datos al cargar la página
