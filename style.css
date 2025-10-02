@@ -5,17 +5,17 @@ body {
     color: #333;
 }
 
-/* NUEVO CONTENEDOR DE ENCABEZADO */
+/* CONTENEDOR DE ENCABEZADO para alinear título y botón de reset */
 #header-container {
     display: flex;
     align-items: center;
-    justify-content: space-between; /* Distribuye el espacio entre el título y el botón */
+    justify-content: space-between; 
     margin-bottom: 20px;
 }
 
 h1 {
     color: #004d99;
-    margin: 0; /* Elimina margen del h1 para mejor alineación */
+    margin: 0;
 }
 
 h2, h3 {
@@ -37,7 +37,7 @@ button {
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    /* margin-left: 10px; -- Eliminado, ahora controlado por el flexbox */
+    margin-left: 10px;
     transition: background-color 0.3s;
 }
 
@@ -45,7 +45,7 @@ button:hover:not(:disabled) {
     background-color: #0056b3;
 }
 
-.danger-btn {
+.danger-btn { /* Estilo para el botón de borrar */
     background-color: #dc3545;
 }
 
