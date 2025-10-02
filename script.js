@@ -275,7 +275,6 @@ function registrarResultado(index, isPlayoff = false) {
     partido.perdedor = g1 < g2 ? partido.j1 : partido.j2;
 
     guardarDatos();
-    // Es crucial actualizar todo después de guardar un resultado
     actualizarRankingYFinales();
     generarPartidosGruposHTML(); 
     generarPartidosPlayoffHTML(); 
@@ -356,36 +355,49 @@ function generarPartidosPlayoffHTML() {
 }
 
 
-// --- CÁLCULO DE RANKING DE GRUPOS Y GLOBAL (MÉTRICAS) ---
+// --- CÁLCULO DE RANKING DE GRUPOS Y GLOBAL (MODIFICADO: SOLO DIFERENCIA x 10) ---
 
+/**
+ * Calcula las métricas de ranking.
+ * @param {string[]} jugadores - Lista de jugadores a calcular (Grupo A, B, o todos).
+ * @param {boolean} calcularGlobal - Si es true, usa TODOS los partidos (Grupos + Playoffs).
+ * @returns {object[]} - Datos de ranking.
+ */
 function calcularRanking(jugadores, calcularGlobal = false) {
     const rankingData = jugadores.map(j => ({
         nombre: j,
         puntos: 0,
         victorias: 0,
         gamesFavor: 0,
-        gamesContra: 0
+        gamesContra: 0,
+        dif: 0 
     }));
 
+    // 1. Obtener la lista de todos los partidos a considerar
     let partidosACalcular = [...partidos];
     if (calcularGlobal) {
         const playoffMatches = [...playoffs.semifinales, playoffs.tercerPuesto, playoffs.final].filter(p => p && p.ganador);
         partidosACalcular = partidosACalcular.concat(playoffMatches);
     } else {
+        // Filtrar partidos de grupo por el conjunto de jugadores
         const grupoKey = grupos.A.includes(jugadores[0]) ? 'A' : 'B';
         partidosACalcular = partidosACalcular.filter(p => p.grupo === grupoKey);
     }
 
 
+    // 2. Procesar los partidos
     partidosACalcular.filter(p => p.gamesJ1 !== null).forEach(p => {
         const r1 = rankingData.find(r => r.nombre === p.j1);
         const r2 = rankingData.find(r => r.nombre === p.j2);
 
         if (r1 && r2) {
+            // Games y Victorias (se acumulan siempre)
             r1.gamesFavor += p.gamesJ1;
             r1.gamesContra += p.gamesJ2;
             r2.gamesFavor += p.gamesJ2;
             r2.gamesContra += p.gamesJ1;
+            
+            const difMatch = p.gamesJ1 - p.gamesJ2;
             
             if (p.gamesJ1 > p.gamesJ2) {
                 r1.victorias += 1;
@@ -393,26 +405,25 @@ function calcularRanking(jugadores, calcularGlobal = false) {
                 r2.victorias += 1;
             }
             
-            if (p.tipo === 'Grupo') {
-                r1.puntos += p.gamesJ1 * 10;
-                r2.puntos += p.gamesJ2 * 10;
-                if (p.gamesJ1 > p.gamesJ2) {
-                    r1.puntos += 100;
-                } else if (p.gamesJ2 > p.gamesJ1) {
-                    r2.puntos += 100;
-                }
+            // Lógica de Puntos: (Diferencia de Games) * 10
+            // Se aplica a Grupos y a Playoffs si estamos en el cálculo global
+            if (p.tipo === 'Grupo' || calcularGlobal) {
+                // Cálculo de puntos: (Games a favor - Games en contra) * 10
+                r1.puntos += difMatch * 10;
+                r2.puntos += (-difMatch) * 10; // La diferencia es opuesta
             }
         }
     });
 
+    // 3. Calcular la diferencia total y ordenar
     rankingData.forEach(r => {
         r.dif = r.gamesFavor - r.gamesContra;
     });
-
+    
+    // Para el ranking de grupos, ordenamos por Puntos (que es Dif x 10), y luego por G-Favor
     if (!calcularGlobal) {
         rankingData.sort((a, b) => {
             if (b.puntos !== a.puntos) return b.puntos - a.puntos;
-            if (b.dif !== a.dif) return b.dif - a.dif;
             return b.gamesFavor - a.gamesFavor;
         });
     }
@@ -460,7 +471,6 @@ function generarPlayoffs(rA, rB) {
     const b2 = rB[1].nombre;
     
     const divPlayoffs = document.getElementById('playoffs');
-    // **CORRECCIÓN:** Limpiar divPlayoffs solo al inicio de la generación de la fase final
     divPlayoffs.innerHTML = ''; 
     
     const todosLosPartidosJugados = partidos.every(p => p.ganador);
@@ -486,4 +496,138 @@ function generarPlayoffs(rA, rB) {
             <p>SF2: **${sf2.j1}** vs **${sf2.j2}** (${sf2.ganador ? `Ganador: **${sf2.ganador}** (${sf2.gamesJ1}-${sf2.gamesJ2})` : 'Pendiente'})</p>
         `;
         
-        // 2. Generar Final y 3er Puesto
+        // 2. Generar Final y 3er Puesto (Paso 6)
+        if (sf1.ganador && sf2.ganador) {
+            
+            // Asegurar que los perdedores y ganadores se usen en caso de recarga
+            playoffs.tercerPuesto = playoffs.tercerPuesto || { index: 2 };
+            playoffs.tercerPuesto.j1 = sf1.perdedor;
+            playoffs.tercerPuesto.j2 = sf2.perdedor;
+            playoffs.tercerPuesto.tipo = '3er Puesto';
+            
+            playoffs.final = playoffs.final || { index: 3 };
+            playoffs.final.j1 = sf1.ganador;
+            playoffs.final.j2 = sf2.ganador;
+            playoffs.final.tipo = 'Final';
+            
+            guardarDatos();
+            generarPartidosPlayoffHTML();
+
+            divPlayoffs.innerHTML += `
+                <h4>Paso 6: Finales</h4>
+                <p>3er Puesto: **${playoffs.tercerPuesto.j1}** vs **${playoffs.tercerPuesto.j2}** (${playoffs.tercerPuesto.ganador ? `Ganador: **${playoffs.tercerPuesto.ganador}** (${playoffs.tercerPuesto.gamesJ1}-${playoffs.tercerPuesto.gamesJ2})` : 'Pendiente'})</p>
+                <p>Final: **${playoffs.final.j1}** vs **${playoffs.final.j2}** (${playoffs.final.ganador ? `Ganador: **${playoffs.final.ganador}** (${playoffs.final.gamesJ1}-${playoffs.final.gamesJ2})` : 'Pendiente'})</p>
+            `;
+            
+            // 3. Mostrar Ranking Final 
+            if (playoffs.tercerPuesto.ganador && playoffs.final.ganador) {
+                mostrarRankingFinal(); 
+            }
+
+        } else if (playoffs.semifinales.length > 0) {
+            divPlayoffs.innerHTML += '<p>Complete los resultados de ambas Semifinales para avanzar a la Final y 3er Puesto.</p>';
+        }
+    } else {
+        divPlayoffs.innerHTML = '<p>Complete todos los resultados de la Fase de Grupos para generar las Semifinales (Paso 5).</p>';
+    }
+}
+
+function mostrarRankingFinal() {
+    const divPlayoffs = document.getElementById('playoffs');
+    
+    const final = playoffs.final;
+    const tercerPuesto = playoffs.tercerPuesto;
+    
+    // 1. Clasificación 1 al 4 (Determinado por Playoff)
+    const rankingPlayoff = [
+        { puesto: 1, nombre: final.ganador },
+        { puesto: 2, nombre: final.perdedor },
+        { puesto: 3, nombre: tercerPuesto.ganador },
+        { puesto: 4, nombre: tercerPuesto.perdedor }
+    ];
+    
+    // 2. Obtener TODAS las métricas globales (Grupos + Playoffs)
+    const allPlayers = participantes;
+    const allGlobalMetrics = calcularRanking(allPlayers, true); 
+
+    
+    // 3. Asignar métricas completas a los jugadores 1ro al 4to
+    const top4ConMetrics = rankingPlayoff.map(r => {
+        const metrics = allGlobalMetrics.find(m => m.nombre === r.nombre) || {};
+        return { ...r, ...metrics };
+    });
+    
+    // 4. Jugadores clasificados 5to al N (ordenados por métricas de grupo)
+    const top4Nombres = top4ConMetrics.map(r => r.nombre);
+    
+    // Usamos el ranking de grupo (sin playoffs) para desempatar el 5to lugar en adelante
+    const allGroupRankings = calcularRanking(grupos.A).concat(calcularRanking(grupos.B));
+    
+    const noClasificados = allGroupRankings
+        .filter(r => !top4Nombres.includes(r.nombre))
+        .map((j, index) => {
+            const globalMetrics = allGlobalMetrics.find(m => m.nombre === j.nombre) || {};
+            return { puesto: 5 + index, nombre: j.nombre, ...globalMetrics };
+        });
+
+    // 5. Unir el ranking final completo
+    const rankingFinalCompleto = top4ConMetrics.concat(noClasificados);
+    
+    // 6. Generar la tabla HTML detallada
+    divPlayoffs.innerHTML += `
+        <hr>
+        <h3>🏆 Paso 7: Ranking Final del Torneo 🏆</h3>
+        <table class="ranking-table" style="width: 80%;">
+            <tr>
+                <th>Puesto</th>
+                <th>Jugador</th>
+                <th>Puntos</th>
+                <th>Vics</th>
+                <th>G-Favor</th>
+                <th>G-Contra</th>
+                <th>Dif.</th>
+            </tr>
+            ${rankingFinalCompleto.map(r => `
+                <tr style="background-color: ${r.puesto <= 4 ? (r.puesto === 1 ? '#ffcc0040' : '#d4edda') : 'none'};">
+                    <td>${r.puesto}</td>
+                    <td>${r.nombre}</td>
+                    <td>${r.puntos || 0}</td>
+                    <td>${r.victorias || 0}</td>
+                    <td>${r.gamesFavor || 0}</td>
+                    <td>${r.gamesContra || 0}</td>
+                    <td>${r.dif || 0}</td>
+                </tr>
+            `).join('')}
+        </table>
+    `;
+}
+
+function actualizarRankingYFinales() {
+    // Calculamos los rankings de grupos
+    const rankingA = calcularRanking(grupos.A, false);
+    const rankingB = calcularRanking(grupos.B, false);
+
+    const rankingsContainer = document.getElementById('rankings-container');
+    rankingsContainer.innerHTML = `
+        <div>
+            <h3>Ranking Grupo A</h3>
+            <table id="ranking-a" class="ranking-table"></table>
+        </div>
+        <div>
+            <h3>Ranking Grupo B</h3>
+            <table id="ranking-b" class="ranking-table"></table>
+        </div>
+    `;
+
+    mostrarRanking(rankingA, 'ranking-a');
+    mostrarRanking(rankingB, 'ranking-b');
+    
+    if (rankingA.length >= 2 && rankingB.length >= 2) {
+        generarPlayoffs(rankingA, rankingB);
+    } else {
+        document.getElementById('playoffs').innerHTML = '<p>Complete todos los resultados de la Fase de Grupos para generar las Semifinales (Paso 5).</p>';
+    }
+}
+
+// Cargar datos al cargar la página
+window.onload = cargarDatos;
