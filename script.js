@@ -121,7 +121,7 @@ function agregarParticipante() {
     }
 }
 
-// --- GENERACIÓN DE GRUPOS Y FIXTURE (CORREGIDO EL ALGORITMO DE ROTACIÓN) ---
+// --- GENERACIÓN DE GRUPOS Y FIXTURE (ROTACIÓN FINAL CORREGIDA) ---
 
 function generarFixture(grupo) {
     const n = grupo.length;
@@ -132,13 +132,11 @@ function generarFixture(grupo) {
 
     // Para que el algoritmo de rotación funcione, el número total de elementos debe ser par.
     const isImpar = n % 2 !== 0;
-    if (!isImpar) {
+    if (isImpar) {
         jugadores.push(null); // 'null' representa el jugador que descansa (BYE)
     }
-    const numJugadoresRotacion = jugadores.length;
+    const numJugadoresRotacion = jugadores.length; // Siempre par
     const totalRondas = numJugadoresRotacion - 1; 
-
-    // Guardar la referencia al grupo actual (A o B)
     const grupoKey = grupo === grupos.A ? 'A' : 'B';
 
     for (let r = 0; r < totalRondas; r++) {
@@ -146,28 +144,31 @@ function generarFixture(grupo) {
             const j1 = jugadores[i];
             const j2 = jugadores[numJugadoresRotacion - 1 - i];
 
-            // Solo registramos partidos si ambos son jugadores reales (no 'null')
-            // Y SIEMPRE que j1 no sea igual a j2 (aunque la rotación corregida debería evitar esto)
-            if (j1 !== null && j2 !== null && j1 !== j2) { 
-                // Verificar que el partido no se haya generado ya (solo si N es impar)
+            // Solo registramos partidos si ambos son jugadores reales y no son el mismo jugador
+            if (j1 !== null && j2 !== null && j1 !== j2) {
+                // Agregar el partido si aún no se ha agregado (doble chequeo)
                 if (!fixture.find(p => (p.j1 === j1 && p.j2 === j2) || (p.j1 === j2 && p.j2 === j1))) {
                     fixture.push({ j1: j1, j2: j2, grupo: grupoKey });
                 }
             }
         }
         
-        // CORRECCIÓN CLAVE EN LA ROTACIÓN:
-        // Mantener el primer elemento (índice 0) fijo y rotar el resto.
-        if (numJugadoresRotacion > 1) {
+        // ROTACIÓN DEL CÍRCULO (Round-Robin)
+        // El primer elemento (índice 0) se mantiene fijo. El resto rota en sentido horario.
+        if (numJugadoresRotacion > 2) {
             const primerJugador = jugadores[0];
-            const resto = jugadores.slice(1); // Tomar todos excepto el primero
-            const ultimo = resto.pop(); // Sacar el último del resto
+            const ultimoDelResto = jugadores[numJugadoresRotacion - 1]; // Último elemento
             
-            // Reinsertar el último al inicio del resto
-            resto.unshift(ultimo); 
+            // Mover todos los elementos del 1 al N-2 una posición a la derecha
+            for (let i = numJugadoresRotacion - 1; i > 1; i--) {
+                jugadores[i] = jugadores[i - 1];
+            }
             
-            // Reconstruir la lista de jugadores
-            jugadores = [primerJugador, ...resto];
+            // Mover el último elemento a la posición 1
+            jugadores[1] = ultimoDelResto;
+            
+            // Restaurar el elemento fijo en la posición 0
+            jugadores[0] = primerJugador;
         }
     }
     return fixture;
@@ -253,7 +254,7 @@ function registrarResultado(index) {
     const esVictoriaRegular = (g1 >= 8 || g2 >= 8) && (Math.abs(g1 - g2) >= 2);
 
     if (isNaN(g1) || isNaN(g2) || g1 === g2 || !(esVictoriaRegular || esTieBreakValido)) {
-        alert("Resultado inválido. Debe ser una victoria por 2 games (Ej: 8-6, 9-7) o un tie-break (8-7 o 7-8).");
+        alert("Resultado inválido. Debe ser una victoria por 2 games (Ej: 8-6) o un tie-break (8-7 o 7-8).");
         return;
     }
 
