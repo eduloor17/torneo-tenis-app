@@ -47,14 +47,12 @@ function borrarDatos() {
     if (confirm("⚠️ ¿Estás seguro de que quieres borrar TODOS los datos del torneo (jugadores, resultados y configuración)? Esta acción es irreversible.")) {
         localStorage.clear();
         
-        // Reiniciar variables a su estado inicial
         participantes = [];
         partidos = [];
         grupos = { A: [], B: [] };
         MAX_JUGADORES = 10; 
 
         alert("✅ Todos los datos han sido borrados. La aplicación se ha reiniciado.");
-        // Recargar la UI
         location.reload(); 
     }
 }
@@ -123,7 +121,7 @@ function agregarParticipante() {
     }
 }
 
-// --- GENERACIÓN DE GRUPOS Y FIXTURE (CORREGIDO) ---
+// --- GENERACIÓN DE GRUPOS Y FIXTURE (CORREGIDO EL ALGORITMO DE ROTACIÓN) ---
 
 function generarFixture(grupo) {
     const n = grupo.length;
@@ -132,12 +130,16 @@ function generarFixture(grupo) {
     const fixture = [];
     let jugadores = [...grupo];
 
+    // Para que el algoritmo de rotación funcione, el número total de elementos debe ser par.
     const isImpar = n % 2 !== 0;
     if (!isImpar) {
-        jugadores.push(null); // 'null' representa el jugador que descansa
+        jugadores.push(null); // 'null' representa el jugador que descansa (BYE)
     }
     const numJugadoresRotacion = jugadores.length;
     const totalRondas = numJugadoresRotacion - 1; 
+
+    // Guardar la referencia al grupo actual (A o B)
+    const grupoKey = grupo === grupos.A ? 'A' : 'B';
 
     for (let r = 0; r < totalRondas; r++) {
         for (let i = 0; i < numJugadoresRotacion / 2; i++) {
@@ -145,20 +147,27 @@ function generarFixture(grupo) {
             const j2 = jugadores[numJugadoresRotacion - 1 - i];
 
             // Solo registramos partidos si ambos son jugadores reales (no 'null')
-            if (j1 !== null && j2 !== null) {
-                // Verificar que el partido no se haya generado ya
+            // Y SIEMPRE que j1 no sea igual a j2 (aunque la rotación corregida debería evitar esto)
+            if (j1 !== null && j2 !== null && j1 !== j2) { 
+                // Verificar que el partido no se haya generado ya (solo si N es impar)
                 if (!fixture.find(p => (p.j1 === j1 && p.j2 === j2) || (p.j1 === j2 && p.j2 === j1))) {
-                    fixture.push({ j1: j1, j2: j2, grupo: grupo === grupos.A ? 'A' : 'B' });
+                    fixture.push({ j1: j1, j2: j2, grupo: grupoKey });
                 }
             }
         }
         
-        // Rotación: Mantener el primer elemento (índice 0) fijo y rotar el resto
+        // CORRECCIÓN CLAVE EN LA ROTACIÓN:
+        // Mantener el primer elemento (índice 0) fijo y rotar el resto.
         if (numJugadoresRotacion > 1) {
             const primerJugador = jugadores[0];
-            const ultimo = jugadores.pop();
-            jugadores.splice(1, 0, ultimo);
-            jugadores[0] = primerJugador;
+            const resto = jugadores.slice(1); // Tomar todos excepto el primero
+            const ultimo = resto.pop(); // Sacar el último del resto
+            
+            // Reinsertar el último al inicio del resto
+            resto.unshift(ultimo); 
+            
+            // Reconstruir la lista de jugadores
+            jugadores = [primerJugador, ...resto];
         }
     }
     return fixture;
@@ -215,7 +224,6 @@ function iniciarTorneo() {
 
 function generarPartidosHTML() {
     const contenedor = document.getElementById('partidos-registro');
-    // Instrucción de Tie-Break clara
     contenedor.innerHTML = '<h4>Registre los resultados (Ej: 8-3, 8-6, 4-8, etc.). Si queda 7-7, el tie-break se registra como **7-8** o **8-7** (según el ganador).</h4>';
 
     partidos.forEach((p, index) => {
@@ -241,14 +249,11 @@ function registrarResultado(index) {
     const g2 = parseInt(document.getElementById(`g2-${index}`).value);
 
     // Validación según la regla:
-    // Un partido termina si:
-    // 1. Gana por 2 games (Ej: 8-6, 9-7, etc.).
-    // 2. Es resultado de tie-break (7-8 o 8-7).
     const esTieBreakValido = (g1 === 7 && g2 === 8) || (g1 === 8 && g2 === 7);
     const esVictoriaRegular = (g1 >= 8 || g2 >= 8) && (Math.abs(g1 - g2) >= 2);
 
     if (isNaN(g1) || isNaN(g2) || g1 === g2 || !(esVictoriaRegular || esTieBreakValido)) {
-        alert("Resultado inválido. Debe ser una victoria por 2 games (Ej: 8-6) o un tie-break (8-7 o 7-8).");
+        alert("Resultado inválido. Debe ser una victoria por 2 games (Ej: 8-6, 9-7) o un tie-break (8-7 o 7-8).");
         return;
     }
 
@@ -260,7 +265,7 @@ function registrarResultado(index) {
     alert(`Resultado guardado: ${partidos[index].j1} ${g1} - ${g2} ${partidos[index].j2}`);
 }
 
-// --- CÁLCULO DE RANKING Y FASES FINALES ---
+// --- CÁLCULO DE RANKING Y FASES FINALES (sin cambios) ---
 
 function calcularRanking(grupo) {
     const jugadores = grupo;
@@ -293,13 +298,10 @@ function calcularRanking(grupo) {
     });
 
     rankingData.sort((a, b) => {
-        // 1. Puntos Totales
         if (b.puntos !== a.puntos) return b.puntos - a.puntos;
-        // 2. Diferencia de Games
         const diffA = a.gamesFavor - a.gamesContra;
         const diffB = b.gamesFavor - b.gamesContra;
         if (diffB !== diffA) return diffB - diffA;
-        // 3. Games a Favor
         return b.gamesFavor - a.gamesFavor;
     });
 
