@@ -1,1 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torneo de Tenis 🎾 - Manager</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Gestor de Torneo de Tenis</h1>
 
+    <section id="registro">
+        <h2>1. Inscripción de Jugadores</h2>
+        <div id="registro-form">
+            <input type="text" id="nombre-input" placeholder="Nombre del Jugador">
+            <button onclick="agregarParticipante()">Añadir Jugador</button>
+        </div>
+        <p>Participantes actuales: <span id="contador-participantes">0</span></p>
+        <ul id="lista-participantes"></ul>
+        <button id="btn-iniciar" onclick="iniciarTorneo()" disabled>Iniciar Torneo (Necesita 18 jugadores)</button>
+    </section>
+
+    <hr>
+
+    <section id="grupos-fixture" style="display: none;">
+        <h2>2. Fase de Grupos y Partidos</h2>
+        <div id="grupos-container">
+            <h3>Grupo A</h3>
+            <div id="grupo-a-list" class="grupo-box"></div>
+            <h3>Grupo B</h3>
+            <div id="grupo-b-list" class="grupo-box"></div>
+        </div>
+
+        <h3>Registro de Resultados</h3>
+        <div id="partidos-registro">
+            </div>
+    </section>
+
+    <hr>
+
+    <section id="ranking-finales" style="display: none;">
+        <h2>3. Ranking y Playoffs</h2>
+
+        <div id="rankings-container">
+            <div>
+                <h3>Ranking Grupo A</h3>
+                <table id="ranking-a" class="ranking-table"></table>
+            </div>
+            <div>
+                <h3>Ranking Grupo B</h3>
+                <table id="ranking-b" class="ranking-table"></table>
+            </div>
+        </div>
+
+        <h3>Fase Final (Playoffs)</h3>
+        <div id="playoffs">
+            </div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>
