@@ -5,7 +5,20 @@ body {
     color: #333;
 }
 
-h1, h2, h3 {
+/* NUEVO CONTENEDOR DE ENCABEZADO */
+#header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Distribuye el espacio entre el título y el botón */
+    margin-bottom: 20px;
+}
+
+h1 {
+    color: #004d99;
+    margin: 0; /* Elimina margen del h1 para mejor alineación */
+}
+
+h2, h3 {
     color: #004d99;
 }
 
@@ -24,7 +37,7 @@ button {
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    margin-left: 10px;
+    /* margin-left: 10px; -- Eliminado, ahora controlado por el flexbox */
     transition: background-color 0.3s;
 }
 
