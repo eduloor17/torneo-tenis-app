@@ -1,1 +1,86 @@
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background-color: #f4f4f9;
+    color: #333;
+}
 
+h1, h2, h3 {
+    color: #004d99;
+}
+
+section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+input[type="text"] {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+#lista-participantes {
+    list-style: none;
+    padding: 0;
+}
+
+#lista-participantes li {
+    background: #e9ecef;
+    margin: 5px 0;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+#grupos-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.grupo-box {
+    flex: 1;
+    padding: 15px;
+    border: 1px solid #004d99;
+    border-radius: 5px;
+}
+
+.ranking-table, #playoffs table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.ranking-table th, .ranking-table td, #playoffs th, #playoffs td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.ranking-table th {
+    background-color: #f2f2f2;
+}
+
+#rankings-container {
+    display: flex;
+    gap: 20px;
+}
