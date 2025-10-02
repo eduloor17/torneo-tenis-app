@@ -25,6 +25,19 @@ button {
     border-radius: 5px;
     cursor: pointer;
     margin-left: 10px;
+    transition: background-color 0.3s;
+}
+
+button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.danger-btn { /* Nuevo estilo para el botón de borrar */
+    background-color: #dc3545;
+}
+
+.danger-btn:hover:not(:disabled) {
+    background-color: #c82333;
 }
 
 button:disabled {
