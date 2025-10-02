@@ -355,7 +355,7 @@ function generarPartidosPlayoffHTML() {
 }
 
 
-// --- CÁLCULO DE RANKING DE GRUPOS Y GLOBAL (MODIFICADO) ---
+// --- CÁLCULO DE RANKING DE GRUPOS Y GLOBAL (MÉTRICAS) ---
 
 /**
  * Calcula las métricas de ranking.
@@ -373,10 +373,10 @@ function calcularRanking(jugadores, calcularGlobal = false) {
     }));
 
     // 1. Obtener la lista de todos los partidos a considerar
-    let partidosACalcular = partidos;
+    let partidosACalcular = [...partidos];
     if (calcularGlobal) {
         const playoffMatches = [...playoffs.semifinales, playoffs.tercerPuesto, playoffs.final].filter(p => p && p.ganador);
-        partidosACalcular = partidosACalular.concat(playoffMatches);
+        partidosACalcular = partidosACalcular.concat(playoffMatches);
     } else {
         // Filtrar partidos de grupo por el conjunto de jugadores
         const grupoKey = grupos.A.includes(jugadores[0]) ? 'A' : 'B';
@@ -389,27 +389,29 @@ function calcularRanking(jugadores, calcularGlobal = false) {
         const r1 = rankingData.find(r => r.nombre === p.j1);
         const r2 = rankingData.find(r => r.nombre === p.j2);
 
-        // Solo procesar si ambos jugadores están en el subconjunto (jugadores de un grupo)
+        // Solo procesar si ambos jugadores están en el subconjunto
         if (r1 && r2) {
-            // Games y Puntos
+            // Games y Victorias (se acumulan siempre)
             r1.gamesFavor += p.gamesJ1;
             r1.gamesContra += p.gamesJ2;
             r2.gamesFavor += p.gamesJ2;
             r2.gamesContra += p.gamesJ1;
             
-            // Los puntos se acumulan solo en la Fase de Grupos
+            if (p.gamesJ1 > p.gamesJ2) {
+                r1.victorias += 1;
+            } else if (p.gamesJ2 > p.gamesJ1) {
+                r2.victorias += 1;
+            }
+            
+            // Puntos (Solo se acumulan en la Fase de Grupos)
             if (p.tipo === 'Grupo') {
                 r1.puntos += p.gamesJ1 * 10;
                 r2.puntos += p.gamesJ2 * 10;
-            }
-
-            // Victorias (acumula en grupos y playoffs)
-            if (p.gamesJ1 > p.gamesJ2) {
-                r1.victorias += 1;
-                if (p.tipo === 'Grupo') r1.puntos += 100; // Puntos de victoria solo en grupos
-            } else if (p.gamesJ2 > p.gamesJ1) {
-                r2.victorias += 1;
-                if (p.tipo === 'Grupo') r2.puntos += 100; // Puntos de victoria solo en grupos
+                if (p.gamesJ1 > p.gamesJ2) {
+                    r1.puntos += 100;
+                } else if (p.gamesJ2 > p.gamesJ1) {
+                    r2.puntos += 100;
+                }
             }
         }
     });
@@ -462,9 +464,10 @@ function mostrarRanking(ranking, tablaId) {
     });
 }
 
-// --- GENERACIÓN DE PLAYOFFS Y RANKING FINAL (MODIFICADO) ---
+// --- GENERACIÓN DE PLAYOFFS Y RANKING FINAL (CORREGIDO) ---
 
 function generarPlayoffs(rA, rB) {
+    // ... [La lógica de generación de Playoffs (Paso 5 y 6) no se modifica] ...
     const a1 = rA[0].nombre;
     const a2 = rA[1].nombre;
     const b1 = rB[0].nombre;
@@ -565,11 +568,12 @@ function mostrarRankingFinal() {
     
     // 2. Obtener TODAS las métricas globales (Grupos + Playoffs)
     const allPlayers = participantes;
-    const allGlobalMetrics = calcularRanking(allPlayers, true); // <--- TRUE para calcular global
+    const allGlobalMetrics = calcularRanking(allPlayers, true); // <--- TRUE: Games y Vics de todo el torneo. Puntos solo de grupo.
 
     
     // 3. Asignar métricas completas a los jugadores 1ro al 4to
     const top4ConMetrics = rankingPlayoff.map(r => {
+        // BUSCAMOS el objeto de métricas completas
         const metrics = allGlobalMetrics.find(m => m.nombre === r.nombre) || {};
         return { ...r, ...metrics };
     });
@@ -577,13 +581,13 @@ function mostrarRankingFinal() {
     // 4. Jugadores clasificados 5to al N (ordenados por métricas de grupo)
     const top4Nombres = top4ConMetrics.map(r => r.nombre);
     
-    // Aquí usamos el ranking de grupo (sin playoffs) para desempatar el 5to lugar en adelante
+    // Usamos el ranking de grupo (sin playoffs) para desempatar el 5to lugar en adelante
     const allGroupRankings = calcularRanking(grupos.A).concat(calcularRanking(grupos.B));
     
     const noClasificados = allGroupRankings
         .filter(r => !top4Nombres.includes(r.nombre))
         .map((j, index) => {
-            // Reutilizamos el objeto de métricas globales (que incluye los games de grupo)
+            // Para los no clasificados, sus métricas globales son iguales a sus métricas de grupo (solo jugaron grupo)
             const globalMetrics = allGlobalMetrics.find(m => m.nombre === j.nombre) || {};
             return { puesto: 5 + index, nombre: j.nombre, ...globalMetrics };
         });
