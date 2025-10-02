@@ -32,7 +32,7 @@ button:hover:not(:disabled) {
     background-color: #0056b3;
 }
 
-.danger-btn { /* Nuevo estilo para el botón de borrar */
+.danger-btn {
     background-color: #dc3545;
 }
 
