@@ -40,11 +40,11 @@
     <section id="grupos-fixture" style="display: none;">
         <h2>3. Fase de Grupos y Partidos</h2>
         <div id="grupos-container">
-            </div>
+        </div>
 
         <h3>Registro de Resultados de Grupos</h3>
         <div id="partidos-registro-grupos">
-            </div>
+        </div>
     </section>
 
     <hr>
@@ -53,17 +53,27 @@
         <h2>4. Rankings y Playoff</h2>
 
         <div id="rankings-container">
-            </div>
+        </div>
         
         <div id="playoffs-registro">
             <h3>Registro de Resultados de Playoff</h3>
+            
+            <form id="score-form">
+                <label for="player-name">Nombre del Jugador:</label>
+                <input type="text" id="player-name" required placeholder="Ej: Juan Pérez"><br><br>
+
+                <label for="player-score">Puntuación de Playoff:</label>
+                <input type="number" id="player-score" required min="0" value="0"><br><br>
+                
+                <button type="submit">Guardar Resultado de Playoff</button>
+                <p id="message-area" style="color: blue; margin-top: 10px;"></p>
+            </form>
+
         </div>
 
         <div id="playoffs">
-            </div>
+        </div>
     </section>
-
-    //    <script src="script.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
@@ -82,11 +92,12 @@
         
         // Initialize Firebase (and create a database object)
         const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+        // La variable 'db' es la que usas en my-app-logic.js
+        const db = firebase.firestore(); 
         
-        // You can now use the 'db' variable to interact with Firestore
         console.log("Firebase App and Firestore initialized!");
     </script>
+    
     <script src="my-app-logic.js"></script>
     
 </body>
