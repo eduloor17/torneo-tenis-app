@@ -31,12 +31,13 @@ async function retryWithBackoff(operation, maxRetries = 3, delay = 1000) {
 
 
 // ==========================================================
-// VARIABLES Y LÓGICA DEL TORNEO DE TENIS
+// VARIABLES Y LÓGICA DEL TORNEO DE TENIS (GLOBAL STATE)
 // ==========================================================
 
 let participantes = [];
 let partidos = []; // Partidos de Fase de Grupos
-let grupos = { A: [], B: [] };
+let grupos = {}; // Objeto para almacenar Grupo A, B, etc.
+let playoffs = { semifinales: [], tercerPuesto: null, final: null }; // <-- FIX: Declaración global de 'playoffs'
 let MAX_JUGADORES = 10; // VALOR INICIAL
 let NUM_GRUPOS = 2; // NUEVA VARIABLE PARA CONTROLAR EL NÚMERO DE GRUPOS
 
@@ -81,7 +82,8 @@ function cargarDatos() {
     
     participantes = p ? JSON.parse(p) : [];
     partidos = pa ? JSON.parse(pa) : [];
-    grupos = g ? JSON.parse(g) : {}; // Ahora es un objeto vacío por defecto
+    grupos = g ? JSON.parse(g) : {}; 
+    // Ahora 'playoffs' ya está declarado globalmente, solo lo sobrescribimos si existe en localStorage
     playoffs = pl ? JSON.parse(pl) : { semifinales: [], tercerPuesto: null, final: null }; 
 
     document.getElementById('max-jugadores-input').value = MAX_JUGADORES;
@@ -137,7 +139,7 @@ function borrarDatos() {
         participantes = [];
         partidos = [];
         grupos = {};
-        playoffs = { semifinales: [], tercerPuesto: null, final: null }; 
+        playoffs = { semifinales: [], tercerPuesto: null, final: null };
         MAX_JUGADORES = 10; 
         NUM_GRUPOS = 2; // Resetear grupos
         
@@ -157,14 +159,15 @@ function borrarDatos() {
  * @returns {Promise<boolean>} True si la carga fue exitosa.
  */
 async function loadTournamentFromFirebase() {
-    if (!currentTournamentId || typeof db === 'undefined') {
+    // Usamos el check typeof window.db === 'undefined' en lugar de typeof db
+    if (!currentTournamentId || typeof window.db === 'undefined') {
         console.log("No hay ID de torneo de Firebase o db no está inicializado. Se cargará solo de Local Storage.");
         return false;
     }
 
     console.log(`Intentando cargar torneo con ID: ${currentTournamentId} desde Firebase.`);
     try {
-        const docSnap = await db.collection("torneos").doc(currentTournamentId).get();
+        const docSnap = await window.db.collection("torneos").doc(currentTournamentId).get();
 
         if (docSnap.exists) {
             const data = docSnap.data();
@@ -199,13 +202,13 @@ async function loadTournamentFromFirebase() {
  * @param {string} externalId - ID del torneo proporcionado por el usuario.
  */
 async function loadExternalTournamentById(externalId) {
-    if (typeof db === 'undefined') {
+    if (typeof window.db === 'undefined') {
         console.error("Firebase Firestore 'db' no está inicializado.");
         return;
     }
 
     try {
-        const docSnap = await db.collection("torneos").doc(externalId).get();
+        const docSnap = await window.db.collection("torneos").doc(externalId).get();
 
         if (docSnap.exists) {
             localStorage.setItem('currentTournamentId', externalId);
@@ -231,8 +234,8 @@ async function loadExternalTournamentById(externalId) {
  * Guarda o actualiza la configuración base del torneo en Firebase.
  */
 async function saveTournamentConfig() {
-    if (typeof db === 'undefined') {
-        console.error("Firebase Firestore 'db' no está inicializado. No se puede guardar.");
+    if (typeof window.db === 'undefined' || typeof window.firebase === 'undefined') {
+        console.error("Firebase Firestore 'db' o 'firebase' no están inicializados. No se puede guardar.");
         return;
     }
 
@@ -243,16 +246,16 @@ async function saveTournamentConfig() {
         partidos: partidos, // Fixture de grupos
         grupos: grupos,     // Lista de jugadores en Grupo A y B
         playoffs: playoffs, // Estructura de eliminatorias
-        fecha_ultima_actualizacion: firebase.firestore.FieldValue.serverTimestamp(),
+        fecha_ultima_actualizacion: window.firebase.firestore.FieldValue.serverTimestamp(),
         estado: (Object.keys(grupos).length > 0 ? 'Iniciado' : 'Pre-registro')
     };
 
     const operation = async () => {
         if (currentTournamentId) {
-            await db.collection("torneos").doc(currentTournamentId).update(tournamentData);
+            await window.db.collection("torneos").doc(currentTournamentId).update(tournamentData);
             return { type: 'UPDATE', id: currentTournamentId };
         } else {
-            const docRef = await db.collection("torneos").add(tournamentData);
+            const docRef = await window.db.collection("torneos").add(tournamentData);
             return { type: 'CREATE', id: docRef.id };
         }
     };
@@ -282,6 +285,7 @@ async function configurarMaxJugadores() {
     const nuevoMax = parseInt(input.value);
 
     if (nuevoMax < 4 || nuevoMax % 2 !== 0) { 
+        // Usamos un modal o mensaje en lugar de alert/confirm
         console.error("El número de jugadores debe ser **al menos 4** y debe ser par (4, 6, 8...).");
         input.value = MAX_JUGADORES;
         return;
@@ -630,10 +634,11 @@ function actualizarRankingYFinales() {
 
 
 // --- OTRAS FUNCIONES (Manteniendo la estructura) ---
-function saveParticipant(name, score) { /* ... lógica de ejemplo ... */ }
-function getScores() { /* ... lógica de ejemplo ... */ }
-function generarPlayoffs(rA, rB) { /* ... lógica de playoffs ... */ }
-function mostrarRankingFinal() { /* ... lógica de ranking final ... */ }
+// Estas funciones se mantienen por consistencia, aunque su implementación es simple o placeholder
+function saveParticipant(name, score) { console.log(`Guardando participante: ${name} con score: ${score}`); }
+function getScores() { console.log("Obteniendo scores..."); }
+function generarPlayoffs(rA, rB) { console.log("Generando playoffs..."); }
+function mostrarRankingFinal() { console.log("Mostrando ranking final..."); }
 
 
 // ==========================================================
@@ -733,7 +738,7 @@ async function generateTournamentAnalysis() {
 }
 
 // ==========================================================
-// EXPOSICIÓN DE FUNCIONES GLOBALES (SOLUCIÓN DEL ERROR)
+// EXPOSICIÓN DE FUNCIONES GLOBALES (Soluciona el ReferenceError del HTML)
 // ==========================================================
 
 // Exponemos las funciones para que el HTML pueda llamarlas directamente con 'onclick'
