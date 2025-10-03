@@ -31,7 +31,7 @@ async function retryWithBackoff(operation, maxRetries = 3, delay = 1000) {
 
 
 // ==========================================================
-// VARIABLES Y LÓGICA ORIGINAL DEL TORNEO
+// VARIABLES Y LÓGICA DEL TORNEO DE TENIS
 // ==========================================================
 
 let participantes = [];
@@ -309,7 +309,7 @@ async function configurarNumGrupos() {
     const input = document.getElementById('num-grupos-input');
     const nuevoNum = parseInt(input.value);
 
-    // Lógica de validación: debe ser par, al menos 2, y no más que la mitad de jugadores
+    // Lógica de validación: debe ser par, al menos 1, y no más que la mitad de jugadores
     if (nuevoNum < 1 || nuevoNum > 6 || nuevoNum > MAX_JUGADORES / 2 || MAX_JUGADORES % nuevoNum !== 0) {
         console.error(`El número de grupos debe ser entre 1 y 6, y debe dividir a los ${MAX_JUGADORES} jugadores de manera equitativa. Intenta 2, o 4.`);
         input.value = NUM_GRUPOS;
@@ -423,6 +423,7 @@ function generarFixture(grupo, nombreGrupo) {
                 jugador1: grupo[i],
                 jugador2: grupo[j],
                 grupo: nombreGrupo, // Asigna el nombre del grupo
+                // En Tenis, gamesJ1 y gamesJ2 representan SETS GANADOS
                 gamesJ1: null,
                 gamesJ2: null,
                 ganador: null,
@@ -456,11 +457,12 @@ async function registrarResultado(index, isPlayoff = false) {
     const targetArray = isPlayoff ? playoffs.semifinales : partidos;
     const match = targetArray[index];
     
+    // En Tenis, estos son Sets Ganados (ej: 2-1, 3-0)
     const gamesJ1 = parseInt(document.getElementById(`score-j1-${index}`).value);
     const gamesJ2 = parseInt(document.getElementById(`score-j2-${index}`).value);
 
     if (isNaN(gamesJ1) || isNaN(gamesJ2) || gamesJ1 === gamesJ2) {
-        console.error("Por favor, introduce puntuaciones válidas. Los marcadores no pueden ser iguales.");
+        console.error("Por favor, introduce puntuaciones de sets válidas. Los marcadores no pueden ser iguales (debe haber un ganador).");
         return;
     }
 
@@ -490,24 +492,25 @@ function generarPartidosGruposHTML() {
             <div class="score-inputs flex items-center justify-between space-x-2">
                 <span class="font-medium w-1/3 text-right truncate">${p.jugador1}</span>
                 <input type="number" id="score-j1-${index}" min="0" value="${p.gamesJ1 !== null ? p.gamesJ1 : 0}" ${p.ganador ? 'disabled' : ''} class="w-12 text-center border rounded-md p-1">
-                <span class="font-bold">-</span>
+                <!-- ETIQUETA ACTUALIZADA A SETS -->
+                <span class="font-bold">Sets</span> 
                 <input type="number" id="score-j2-${index}" min="0" value="${p.gamesJ2 !== null ? p.gamesJ2 : 0}" ${p.ganador ? 'disabled' : ''} class="w-12 text-center border rounded-md p-1">
                 <span class="font-medium w-1/3 text-left truncate">${p.jugador2}</span>
             </div>
             <button onclick="registrarResultado(${index})" ${p.ganador ? 'disabled' : ''}
                     class="mt-3 w-full py-2 rounded-lg text-white font-semibold transition duration-150 ${p.ganador ? 'bg-green-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}">
-                ${p.ganador ? `Ganador: ${p.ganador} 🏆` : 'Registrar Resultado'}
+                ${p.ganador ? `Ganador: ${p.ganador} 🏆` : 'Registrar Marcador (Sets)'}
             </button>
         </div>
     `).join('');
 }
 
 
-// --- LÓGICA DE RANKING (NUEVA Y CRÍTICA) ---
+// --- LÓGICA DE RANKING (ADAPTADA A TENIS) ---
 
 /**
  * Calcula el ranking de un grupo específico basado en los resultados de 'partidos'.
- * Criterios: Puntos > Diferencia de Games > Games a favor.
+ * Criterios: Puntos > Diferencia de SETS > Sets a favor.
  * @param {string[]} jugadores - Array de nombres de jugadores en el grupo.
  * @param {string} nombreGrupo - Nombre del grupo (ej: 'A').
  * @returns {object[]} - Ranking ordenado.
@@ -519,9 +522,9 @@ function calcularRanking(jugadores, nombreGrupo) {
         puntos: 0, 
         ganados: 0, 
         perdidos: 0, 
-        games_a_favor: 0, 
-        games_en_contra: 0, 
-        dif: 0 
+        sets_a_favor: 0, // Antes games_a_favor
+        sets_en_contra: 0, // Antes games_en_contra
+        dif: 0 // Diferencia de Sets
     }));
     
     // Mapea los jugadores por nombre para fácil acceso
@@ -534,13 +537,14 @@ function calcularRanking(jugadores, nombreGrupo) {
 
         if (!s1 || !s2) return; // Jugador no encontrado (error de datos)
 
-        // Actualizar Games
-        s1.games_a_favor += p.gamesJ1;
-        s1.games_en_contra += p.gamesJ2;
-        s2.games_a_favor += p.gamesJ2;
-        s2.games_en_contra += p.gamesJ1;
+        // Actualizar Sets
+        s1.sets_a_favor += p.gamesJ1;
+        s1.sets_en_contra += p.gamesJ2;
+        s2.sets_a_favor += p.gamesJ2;
+        s2.sets_en_contra += p.gamesJ1;
 
         // Actualizar Puntos y Ganados/Perdidos
+        // En tenis, se usan 2 o 3 puntos por victoria en liguilla (usamos 3)
         if (p.ganador === p.jugador1) {
             s1.puntos += 3;
             s1.ganados += 1;
@@ -550,19 +554,18 @@ function calcularRanking(jugadores, nombreGrupo) {
             s2.ganados += 1;
             s1.perdidos += 1;
         }
-        // Nota: No hay empates en foosball/pinball, por eso solo hay +3 puntos.
     });
 
-    // Calcula la diferencia de Games (necesario para el desempate)
+    // Calcula la diferencia de Sets
     stats.forEach(s => {
-        s.dif = s.games_a_favor - s.games_en_contra;
+        s.dif = s.sets_a_favor - s.sets_en_contra;
     });
 
-    // Ordenar: Puntos (desc) -> Diferencia de Games (desc) -> Games a Favor (desc)
+    // Ordenar: Puntos (desc) -> Diferencia de Sets (desc) -> Sets a Favor (desc)
     stats.sort((a, b) => {
         if (b.puntos !== a.puntos) return b.puntos - a.puntos;
         if (b.dif !== a.dif) return b.dif - a.dif;
-        return b.games_a_favor - a.games_a_favor;
+        return b.sets_a_favor - a.sets_a_favor;
     });
 
     return stats;
@@ -586,7 +589,8 @@ function mostrarRanking(ranking, tablaId) {
                     <th scope="col" class="py-2 px-3">Ptos</th>
                     <th scope="col" class="py-2 px-3">G</th>
                     <th scope="col" class="py-2 px-3">P</th>
-                    <th scope="col" class="py-2 px-3 rounded-tr-xl">Dif</th>
+                    <!-- CAMBIADO DE DIFERENCIA DE GAMES A DIFERENCIA DE SETS -->
+                    <th scope="col" class="py-2 px-3 rounded-tr-xl">Dif Sets</th>
                 </tr>
             </thead>
             <tbody>
@@ -644,7 +648,7 @@ async function generateTournamentAnalysis() {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span class="text-gray-600">Generando análisis estratégico...</span>
+            <span class="text-gray-600">Generando análisis estratégico de Tenis...</span>
         </div>
     `;
 
@@ -654,22 +658,22 @@ async function generateTournamentAnalysis() {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent${queryParam}`;
 
     const playerList = participantes.join(', ');
-    const tournamentState = Object.keys(grupos).length > 0 ? 'iniciado con partidos en juego' : 'en pre-registro';
+    const tournamentState = Object.keys(grupos).length > 0 ? 'iniciado con partidos de sets en juego' : 'en pre-registro';
     
     // Incluir el estado actual del ranking para un análisis más profundo
     const rankingData = Object.keys(grupos).map(nombre => {
         const ranking = calcularRanking(grupos[nombre], nombre);
-        return `Grupo ${nombre}: ${ranking.map(r => `${r.nombre} (Ptos: ${r.puntos}, Dif: ${r.dif})`).join('; ')}`;
+        return `Grupo ${nombre}: ${ranking.map(r => `${r.nombre} (Ptos: ${r.puntos}, Dif Sets: ${r.dif})`).join('; ')}`;
     }).join('\n');
 
 
-    const userQuery = `Eres un analista deportivo experto en el torneo de futbolín/foosball. Genera un análisis estratégico de este torneo.
+    const userQuery = `Eres un analista deportivo experto en el torneo de Tenis. Genera un análisis estratégico de este torneo.
     - Estado del Torneo: ${tournamentState}.
     - Número de grupos: ${NUM_GRUPOS}.
     - Jugadores inscritos: ${playerList}.
     - Ranking actual (si aplica):\n${rankingData}
     
-    Proporciona un párrafo corto con: el mayor desafío para el torneo, un pronóstico sobre el favorito y una sugerencia de regla de casa (house rule) divertida para añadir un giro.`;
+    Proporciona un párrafo corto con: el mayor desafío táctico para el torneo, un pronóstico sobre el favorito y una sugerencia de regla de casa (house rule) divertida para añadir un giro.`;
 
     const payload = {
         contents: [{ parts: [{ text: userQuery }] }],
@@ -728,6 +732,19 @@ async function generateTournamentAnalysis() {
     }
 }
 
+// ==========================================================
+// EXPOSICIÓN DE FUNCIONES GLOBALES (SOLUCIÓN DEL ERROR)
+// ==========================================================
+
+// Exponemos las funciones para que el HTML pueda llamarlas directamente con 'onclick'
+window.configurarMaxJugadores = configurarMaxJugadores;
+window.configurarNumGrupos = configurarNumGrupos;
+window.agregarParticipante = agregarParticipante;
+window.iniciarTorneo = iniciarTorneo;
+window.borrarDatos = borrarDatos;
+window.registrarResultado = registrarResultado;
+window.generateTournamentAnalysis = generateTournamentAnalysis;
+
 
 // ==========================================================
 // MANEJADOR INICIAL Y DE FORMULARIO DE FIREBASE
@@ -735,15 +752,7 @@ async function generateTournamentAnalysis() {
 
 document.addEventListener('DOMContentLoaded', async (event) => {
     
-    if (currentTournamentId) {
-        await loadTournamentFromFirebase();
-    }
-    
-    cargarDatos();
-    
-    getScores(); 
-    
-    // --- LISTENER para la Sincronización (Carga por ID) ---
+    // Configuración para el formulario de carga externa
     const loadForm = document.getElementById('load-tournament-form');
     if (loadForm) {
         loadForm.addEventListener('submit', async (e) => {
@@ -759,25 +768,13 @@ document.addEventListener('DOMContentLoaded', async (event) => {
         });
     }
 
-    // --- LISTENER para el Formulario de Score Individual (ejemplo) ---
-    const scoreForm = document.getElementById('score-form');
-    if (scoreForm) {
-        scoreForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const playerName = document.getElementById('player-name').value;
-            const playerScore = parseInt(document.getElementById('player-score').value);
-            const messageArea = document.getElementById('message-area');
-
-            messageArea.textContent = 'Guardando resultado...';
-            const success = await saveParticipant(playerName, playerScore);
-
-            if (success) {
-                messageArea.textContent = 'Resultado de Playoff guardado con éxito!';
-                document.getElementById('player-name').value = '';
-                document.getElementById('player-score').value = 0;
-            } else {
-                messageArea.textContent = 'Fallo al guardar. Revisa la Consola.';
-            }
-        });
+    // Intenta cargar desde Firebase si existe un ID
+    if (currentTournamentId) {
+        await loadTournamentFromFirebase();
     }
+    
+    // Carga los datos finales y actualiza la UI
+    cargarDatos();
+    
+    getScores(); 
 });
