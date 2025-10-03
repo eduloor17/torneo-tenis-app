@@ -47,6 +47,25 @@ let MAX_JUGADORES = 10; // VALOR INICIAL
 // Variable global para el ID del torneo actual en Firebase.
 let currentTournamentId = localStorage.getItem('currentTournamentId') || null;
 
+// --- Funciones de Display ---
+/**
+ * Muestra el ID del torneo actual en la interfaz de usuario.
+ */
+function displayTournamentInfo() {
+    const displayElement = document.getElementById('tournament-id-display');
+    if (displayElement && currentTournamentId) {
+        displayElement.innerHTML = `
+            <p class="text-xs text-gray-600 mt-2">
+                ID del Torneo (Firebase): <span class="font-bold text-indigo-600">${currentTournamentId}</span>
+            </p>
+            <p class="text-sm font-semibold text-green-700">¡Este torneo está guardado y listo para compartirse!</p>
+        `;
+    } else if (displayElement) {
+         displayElement.innerHTML = `<p class="text-sm text-gray-500 mt-2">Torneo no iniciado o ID no disponible.</p>`;
+    }
+}
+
+
 // --- GESTIÓN DE DATOS LOCALES ---
 
 function cargarDatos() {
@@ -80,6 +99,8 @@ function cargarDatos() {
         document.getElementById('grupos-fixture').style.display = 'none';
         document.getElementById('ranking-finales').style.display = 'none';
     }
+    
+    displayTournamentInfo(); // Muestra el ID al cargar
 }
 
 function guardarDatos() {
@@ -127,6 +148,11 @@ async function saveTournamentConfig() {
     const tournamentData = {
         max_jugadores: MAX_JUGADORES,
         participantes: participantes,
+        // CRÍTICO: Incluir estructuras de torneo para la persistencia
+        partidos: partidos, // Fixture de grupos
+        grupos: grupos,     // Lista de jugadores en Grupo A y B
+        playoffs: playoffs, // Estructura de eliminatorias
+        // --- Fin de estructuras críticas ---
         fecha_ultima_actualizacion: firebase.firestore.FieldValue.serverTimestamp(),
         estado: (grupos.A.length > 0 ? 'Iniciado' : 'Pre-registro')
     };
@@ -155,6 +181,7 @@ async function saveTournamentConfig() {
         } else {
             console.log("⬆️ Configuración del torneo actualizada en Firebase:", result.id);
         }
+        displayTournamentInfo(); // Muestra el ID después de guardar
     } catch (error) {
         console.error("❌ ERROR CRÍTICO: Falló la operación de guardado/actualización en /torneos después de múltiples reintentos.", error);
         // Si falla, mostramos una alerta para que el usuario tome acción
