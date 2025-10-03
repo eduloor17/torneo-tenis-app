@@ -161,16 +161,16 @@
 
     <!-- INICIALIZACIÓN DE FIREBASE (REQUIERE LA VARIABLE __firebase_config Y __initial_auth_token) -->
     <script type="module">
-        // Se define el scope de las variables globales proporcionadas por el entorno.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Importaciones de Firebase (DEBEN ESTAR AL INICIO DEL MÓDULO)
+        // Importaciones de Firebase (DEBEN ESTAR AL INICIO DEL MÓDULO, ¡AQUÍ ESTÁ LA CORRECCIÓN CLAVE!)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, updateDoc, addDoc, getDoc, FieldValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Se define el scope de las variables globales proporcionadas por el entorno.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
 
         if (firebaseConfig) {
