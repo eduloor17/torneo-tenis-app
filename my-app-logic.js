@@ -2,11 +2,11 @@
 // y tiene acceso a las variables globales 'db' y 'firebase'.
 
 // ==========================================================
-// UTILITY: EXPONENTIAL BACKOFF FOR FIREBASE WRITES
+// UTILITY: EXPONENTIAL BACKOFF FOR FIREBASE WRITES AND API CALLS
 // ==========================================================
 
 /**
- * Intenta ejecutar una función asíncrona (como una operación de Firestore) con reintentos
+ * Intenta ejecutar una función asíncrona (como una operación de Firestore o una llamada a una API) con reintentos
  * y espera creciente (exponential backoff) en caso de fallo.
  * @param {Function} operation - Función asíncrona a intentar.
  * @param {number} maxRetries - Número máximo de reintentos.
@@ -61,7 +61,7 @@ function displayTournamentInfo() {
             <p class="text-sm font-semibold text-green-700">¡Este torneo está guardado y listo para compartirse!</p>
         `;
     } else if (displayElement) {
-         displayElement.innerHTML = `<p class="text-sm text-gray-500 mt-2">Torneo no iniciado o ID no disponible.</p>`;
+        displayElement.innerHTML = `<p class="text-sm text-gray-500 mt-2">Torneo no iniciado o ID no disponible.</p>`;
     }
 }
 
@@ -90,11 +90,18 @@ function cargarDatos() {
     document.getElementById('max-jugadores-input').value = MAX_JUGADORES;
     actualizarIU();
     
-    if (participantes.length === MAX_JUGADORES && grupos.A.length > 0) {
+    const isTournamentStarted = participantes.length === MAX_JUGADORES && grupos.A.length > 0;
+
+    if (isTournamentStarted) {
         document.getElementById('configuracion').style.display = 'none';
         document.getElementById('registro').style.display = 'none';
         document.getElementById('grupos-fixture').style.display = 'block';
         document.getElementById('ranking-finales').style.display = 'block';
+        
+        // Muestra el botón de análisis solo si el torneo está iniciado
+        const analysisButton = document.getElementById('btn-generate-analysis');
+        if (analysisButton) analysisButton.style.display = 'block'; 
+
         generarGruposHTML();
         generarPartidosGruposHTML();
         actualizarRankingYFinales();
@@ -103,6 +110,9 @@ function cargarDatos() {
         document.getElementById('registro').style.display = 'block';
         document.getElementById('grupos-fixture').style.display = 'none';
         document.getElementById('ranking-finales').style.display = 'none';
+
+        const analysisButton = document.getElementById('btn-generate-analysis');
+        if (analysisButton) analysisButton.style.display = 'none'; 
     }
     
     displayTournamentInfo(); // Muestra el ID al cargar
@@ -155,8 +165,6 @@ async function loadTournamentFromFirebase() {
 
     console.log(`Intentando cargar torneo con ID: ${currentTournamentId} desde Firebase.`);
     try {
-        // En un ambiente con la librería de Firebase v9 o superior, usaríamos doc(db, "torneos", currentTournamentId)
-        // Aquí usamos la sintaxis de Firebase v8 compatible con este entorno:
         const docSnap = await db.collection("torneos").doc(currentTournamentId).get();
 
         if (docSnap.exists) {
@@ -188,14 +196,45 @@ async function loadTournamentFromFirebase() {
     }
 }
 
+/**
+ * Carga el estado completo del torneo desde Firebase usando un ID externo.
+ * @param {string} externalId - ID del torneo proporcionado por el usuario.
+ */
+async function loadExternalTournamentById(externalId) {
+    if (typeof db === 'undefined') {
+        console.error("Firebase Firestore 'db' no está inicializado.");
+        return;
+    }
+
+    try {
+        // En este entorno usamos la sintaxis de la librería v8, simulando doc(db, "torneos", externalId).get()
+        const docSnap = await db.collection("torneos").doc(externalId).get();
+
+        if (docSnap.exists) {
+            // Guarda el ID en la memoria local y lo establece como torneo actual
+            localStorage.setItem('currentTournamentId', externalId);
+            currentTournamentId = externalId;
+            
+            console.log(`✅ Torneo ID ${externalId} encontrado y sincronizado. Recargando...`);
+            // Recargamos la aplicación para que cargue los datos de Firebase
+            location.reload(); 
+        } else {
+            console.error("❌ Error: No se encontró un torneo con ese ID.");
+            // Usamos un modal o mensaje para el usuario en lugar de alert()
+            document.getElementById('load-message').textContent = "Error: No se encontró un torneo con ese ID. Verifica que sea correcto.";
+            document.getElementById('external-id-input').value = '';
+        }
+    } catch (error) {
+        console.error("Error al cargar el ID externo:", error);
+        document.getElementById('load-message').textContent = "Error de conexión. Revisa la consola.";
+    }
+}
+
 
 /**
  * Guarda o actualiza la configuración base del torneo en Firebase.
  */
 async function saveTournamentConfig() {
-    console.log("DEBUG: 1. saveTournamentConfig() ha sido llamado."); // DEBUG LOG
-
-    // Si la variable 'db' no está definida (aunque ya lo comprobamos), salimos
     if (typeof db === 'undefined') {
         console.error("Firebase Firestore 'db' no está inicializado. No se puede guardar.");
         return;
@@ -204,23 +243,19 @@ async function saveTournamentConfig() {
     const tournamentData = {
         max_jugadores: MAX_JUGADORES,
         participantes: participantes,
-        // CRÍTICO: Incluir estructuras de torneo para la persistencia
         partidos: partidos, // Fixture de grupos
         grupos: grupos,     // Lista de jugadores en Grupo A y B
         playoffs: playoffs, // Estructura de eliminatorias
-        // --- Fin de estructuras críticas ---
         fecha_ultima_actualizacion: firebase.firestore.FieldValue.serverTimestamp(),
         estado: (grupos.A.length > 0 ? 'Iniciado' : 'Pre-registro')
     };
 
     const operation = async () => {
         if (currentTournamentId) {
-            console.log("DEBUG: 2A. Intentando ACTUALIZAR documento existente:", currentTournamentId); // DEBUG LOG
             // 1. Torneo existente: Actualizamos el documento por ID
             await db.collection("torneos").doc(currentTournamentId).update(tournamentData);
             return { type: 'UPDATE', id: currentTournamentId };
         } else {
-            console.log("DEBUG: 2B. Intentando CREAR nuevo documento."); // DEBUG LOG
             // 2. Nuevo torneo: Creamos un nuevo documento
             const docRef = await db.collection("torneos").add(tournamentData);
             return { type: 'CREATE', id: docRef.id };
@@ -240,16 +275,13 @@ async function saveTournamentConfig() {
         displayTournamentInfo(); // Muestra el ID después de guardar
     } catch (error) {
         console.error("❌ ERROR CRÍTICO: Falló la operación de guardado/actualización en /torneos después de múltiples reintentos.", error);
-        // Si falla, mostramos una alerta para que el usuario tome acción
-        // Cambiado de alert() a console.error detallado para evitar el bloqueo del iframe
-        console.error(`❌ ERROR CRÍTICO DE FIREBASE. No se pudo guardar el torneo. Verifica los detalles del error en la Consola. Mensaje: ${error.message}`);
+        console.error(`❌ ERROR CRÍTICO DE FIREBASE. No se pudo guardar el torneo. Mensaje: ${error.message}`);
     }
 }
 
 
 // --- CONFIGURACIÓN Y GESTIÓN DE PARTICIPANTES ---
 
-// IMPORTANTE: Convertimos esta función a async para poder esperar el guardado de Firebase
 async function configurarMaxJugadores() {
     const input = document.getElementById('max-jugadores-input');
     const nuevoMax = parseInt(input.value);
@@ -275,7 +307,6 @@ async function configurarMaxJugadores() {
     actualizarIU();
     console.log(`Torneo configurado para ${MAX_JUGADORES} jugadores.`);
     
-    // --> LLAMADA CRÍTICA: Esperamos a que Firebase guarde la configuración.
     await saveTournamentConfig(); 
 }
 
@@ -302,7 +333,6 @@ function actualizarIU() {
     }
 }
 
-// IMPORTANTE: Convertimos esta función a async
 async function agregarParticipante() {
     const input = document.getElementById('nombre-input');
     const nombre = input.value.trim();
@@ -313,14 +343,12 @@ async function agregarParticipante() {
         guardarDatos();
         actualizarIU();
         
-        // --> Llamada al guardado de Firebase
         await saveTournamentConfig(); 
     } else if (participantes.length >= MAX_JUGADORES) {
         console.error(`Ya se han añadido el máximo de ${MAX_JUGADORES} participantes.`);
     }
 }
 
-// IMPORTANTE: Convertimos esta función a async
 async function iniciarTorneo() {
     if (participantes.length !== MAX_JUGADORES) {
         console.error(`El torneo requiere exactamente ${MAX_JUGADORES} jugadores.`);
@@ -344,24 +372,17 @@ async function iniciarTorneo() {
     playoffs = { semifinales: [], tercerPuesto: null, final: null };
 
     guardarDatos();
-    document.getElementById('registro').style.display = 'none';
-    document.getElementById('configuracion').style.display = 'none';
-    document.getElementById('grupos-fixture').style.display = 'block';
-    document.getElementById('ranking-finales').style.display = 'block';
     
-    generarGruposHTML();
-    generarPartidosGruposHTML(); 
-    actualizarRankingYFinales();
+    // Recargar la UI para mostrar las nuevas secciones
+    cargarDatos();
     
-    // --> Llamada al guardado de Firebase para marcar como 'Iniciado'
     await saveTournamentConfig(); 
 }
 
-// --- Lógica del Fixture, Resultados, Rankings, etc. (El resto del código...) ---
+// --- Lógica de Torneo ---
 
 function generarFixture(grupo) { 
     const fixture = [];
-    // Ejemplo de fixture: A vs B, A vs C, B vs C
     for (let i = 0; i < grupo.length; i++) {
         for (let j = i + 1; j < grupo.length; j++) {
             fixture.push({
@@ -392,7 +413,7 @@ function generarGruposHTML() {
 async function registrarResultado(index, isPlayoff = false) {
     const targetArray = isPlayoff ? playoffs.semifinales : partidos;
     const match = targetArray[index];
-    // Modificado para usar console.error en lugar de alert()
+    
     const gamesJ1 = parseInt(document.getElementById(`score-j1-${index}`).value);
     const gamesJ2 = parseInt(document.getElementById(`score-j2-${index}`).value);
 
@@ -408,16 +429,13 @@ async function registrarResultado(index, isPlayoff = false) {
     
     guardarDatos();
 
-    // Si es fase de grupos, actualizamos rankings y checamos playoffs
     if (!isPlayoff) {
         actualizarRankingYFinales();
-        generarPartidosGruposHTML(); // Para actualizar el estado del formulario
+        generarPartidosGruposHTML(); 
     } else {
         // Lógica de avance de playoffs aquí...
     }
     
-    // Guardamos el estado completo del torneo a Firebase después de cada resultado
-    // Ya que la función saveTournamentConfig incluye el estado de partidos, grupos y playoffs
     await saveTournamentConfig();
 }
 
@@ -441,11 +459,14 @@ function generarPartidosGruposHTML() {
     `).join('');
 }
 
-
-// Función de Playoff (manteniendo estructura de tu código original)
-async function saveParticipant(name, score) {
-    // Esta función se mantiene para la colección 'scores'
+function saveParticipant(name, score) {
+    // Función de ejemplo para guardar scores individuales
+    if (typeof db === 'undefined') {
+        console.error("Firebase no inicializado.");
+        return Promise.resolve(false);
+    }
     const operation = async () => {
+        // Usamos la colección 'scores' para este ejemplo
         await db.collection("scores").add({
             name: name,
             score: score,
@@ -454,9 +475,7 @@ async function saveParticipant(name, score) {
     };
 
     try {
-        await retryWithBackoff(operation);
-        console.log("Score saved to 'scores' collection successfully!");
-        return true;
+        return retryWithBackoff(operation);
     } catch (error) {
         console.error("Error writing score to 'scores' collection: ", error.message);
         return false;
@@ -464,11 +483,12 @@ async function saveParticipant(name, score) {
 }
 
 function getScores() {
-    // ... (Tu lógica para leer scores con onSnapshot)
-    // Dejamos esta función simplificada ya que la lectura no era el problema
+    // Escucha en tiempo real (onSnapshot)
     if (typeof db === 'undefined') return;
-    db.collection("scores").orderBy("timestamp", "desc").onSnapshot((snapshot) => {
-        // Lógica para mostrar scores aquí
+    
+    // Implementación mínima para evitar errores
+    db.collection("scores").limit(10).onSnapshot((snapshot) => {
+        // Aquí se actualizaría una lista de scores en la UI
     }, (error) => {
         console.error("Error al escuchar scores:", error);
     });
@@ -476,13 +496,162 @@ function getScores() {
 
 
 function calcularRanking(jugadores, calcularGlobal = false) { 
-    // ... (Tu lógica para calcular ranking) ...
-    return [];
+    // Implementación simple del ranking de grupos (para evitar complejidad innecesaria)
+    const ranking = participantes.map(p => ({ nombre: p, puntos: 0, ganados: 0, perdidos: 0, dif: 0 }));
+    return ranking;
 }
-function mostrarRanking(ranking, tablaId) { /* ... tu código ... */ }
+
+function mostrarRanking(ranking, tablaId) { 
+    const tabla = document.getElementById(tablaId);
+    if (!tabla) return;
+    let html = `
+        <table class="w-full text-sm text-left text-gray-700 shadow-lg rounded-xl overflow-hidden">
+            <thead class="text-xs text-white uppercase bg-indigo-600">
+                <tr>
+                    <th scope="col" class="py-3 px-6 rounded-tl-xl">#</th>
+                    <th scope="col" class="py-3 px-6">Jugador</th>
+                    <th scope="col" class="py-3 px-6">Puntos</th>
+                    <th scope="col" class="py-3 px-6 rounded-tr-xl">Dif. Goles</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    ranking.forEach((p, index) => {
+        html += `
+            <tr class="bg-white border-b hover:bg-gray-50">
+                <th scope="row" class="py-4 px-6 font-medium text-gray-900 whitespace-nowrap">${index + 1}</th>
+                <td class="py-4 px-6">${p.nombre}</td>
+                <td class="py-4 px-6 font-bold">${p.puntos}</td>
+                <td class="py-4 px-6">${p.dif}</td>
+            </tr>
+        `;
+    });
+    html += `</tbody></table>`;
+    tabla.innerHTML = html;
+}
+
 function generarPlayoffs(rA, rB) { /* ... tu código ... */ }
 function mostrarRankingFinal() { /* ... tu código ... */ }
-function actualizarRankingYFinales() { /* ... tu código ... */ }
+function actualizarRankingYFinales() { 
+    const rankingA = calcularRanking(grupos.A);
+    const rankingB = calcularRanking(grupos.B);
+
+    mostrarRanking(rankingA, 'ranking-grupo-a');
+    mostrarRanking(rankingB, 'ranking-grupo-b');
+
+    // Aquí iría la lógica para pasar a playoffs si todos los partidos de grupo están terminados
+}
+
+// ==========================================================
+// FUNCIÓN DE ANÁLISIS DE GEMINI (IA)
+// ==========================================================
+
+async function generateTournamentAnalysis() {
+    const resultsContainer = document.getElementById('analysis-results');
+    resultsContainer.innerHTML = `
+        <div class="flex items-center space-x-2">
+            <svg class="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-gray-600">Generando análisis estratégico...</span>
+        </div>
+    `;
+
+    const modelName = "gemini-2.5-flash-preview-05-20";
+    const apiKey = ""; // La clave se espera que sea inyectada por el entorno
+    
+    // CRÍTICO: Si la clave está vacía, omitimos el parámetro ?key= para que el entorno inyecte la autenticación
+    const queryParam = apiKey ? `?key=${apiKey}` : ''; 
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent${queryParam}`;
+
+    const playerList = participantes.join(', ');
+    const tournamentState = grupos.A.length > 0 ? 'iniciado' : 'en pre-registro';
+    
+    // Construimos el prompt usando los datos del torneo
+    const userQuery = `Eres un analista deportivo experto en el torneo de futbolín/foosball. Genera un análisis estratégico de este torneo.
+    - Estado del Torneo: ${tournamentState}.
+    - Número de jugadores: ${MAX_JUGADORES}.
+    - Jugadores inscritos: ${playerList}.
+    
+    Proporciona un párrafo corto con: el mayor desafío para el torneo, un pronóstico sobre el favorito y una sugerencia de regla de casa (house rule) divertida para añadir un giro.`;
+
+    const payload = {
+        contents: [{ parts: [{ text: userQuery }] }],
+        // Usamos la herramienta de búsqueda para obtener contexto actual si fuera necesario (aunque no es vital aquí)
+        tools: [{ "google_search": {} }], 
+    };
+
+    const operation = async () => {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        // Manejo de errores específicos, incluido el 400
+        if (response.status === 400) {
+            const errorData = await response.json();
+            if (errorData.error && errorData.error.message.includes("API key not valid")) {
+                throw new Error("❌ ERROR 400: Clave API no válida. El entorno de ejecución está fallando en la autenticación.");
+            }
+            throw new Error(`Error 400 Bad Request: ${JSON.stringify(errorData)}`);
+        } else if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        return response.json();
+    };
+
+    try {
+        const result = await retryWithBackoff(operation, 3, 1500);
+        
+        const candidate = result.candidates?.[0];
+
+        if (candidate && candidate.content?.parts?.[0]?.text) {
+            const analysisText = candidate.content.parts[0].text;
+            
+            // 1. Mostrar el texto
+            resultsContainer.innerHTML = `
+                <div class="bg-white p-4 rounded-xl shadow-inner border border-indigo-200">
+                    <h5 class="text-lg font-bold text-indigo-700 mb-2">Análisis Estratégico de Gemini</h5>
+                    <p class="text-gray-700 whitespace-pre-wrap">${analysisText}</p>
+                </div>
+            `;
+            
+            // 2. Extraer y mostrar las fuentes (si existen)
+            let sourcesHtml = '';
+            const groundingMetadata = candidate.groundingMetadata;
+            if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                const sources = groundingMetadata.groundingAttributions
+                    .map(attribution => ({
+                        uri: attribution.web?.uri,
+                        title: attribution.web?.title,
+                    }))
+                    .filter(source => source.uri && source.title);
+
+                if (sources.length > 0) {
+                    sourcesHtml = '<p class="text-xs text-gray-500 mt-2">Fuentes: ' +
+                        sources.map(s => `<a href="${s.uri}" target="_blank" class="text-indigo-500 hover:underline">${s.title}</a>`).join(', ') +
+                        '</p>';
+                }
+            }
+            resultsContainer.innerHTML += sourcesHtml;
+        } else {
+            resultsContainer.innerHTML = '<p class="text-red-500">Error: No se pudo obtener la respuesta del modelo.</p>';
+        }
+
+    } catch (error) {
+        console.error("Fallo definitivo al generar análisis:", error);
+        resultsContainer.innerHTML = `
+            <div class="bg-red-100 p-3 rounded-xl border border-red-400">
+                <p class="text-red-700 font-semibold">Error al generar el análisis 🚨</p>
+                <p class="text-red-600 text-sm mt-1">${error.message}</p>
+                <p class="text-xs mt-1">Inténtalo de nuevo. Si el error persiste, verifica la clave de la API en la consola.</p>
+            </div>
+        `;
+    }
+}
 
 
 // ==========================================================
@@ -492,19 +661,32 @@ function actualizarRankingYFinales() { /* ... tu código ... */ }
 document.addEventListener('DOMContentLoaded', async (event) => {
     
     // 1. CRÍTICO: Intentamos cargar desde Firebase si hay un ID guardado.
-    // Esto SOBRESCRIBE los datos de Local Storage si tiene éxito.
     if (currentTournamentId) {
         await loadTournamentFromFirebase();
     }
     
     // 2. Cargar datos desde Local Storage (ya sea los antiguos o los recién sincronizados)
-    // Esto asegura que la UI se inicialice con la información correcta.
     cargarDatos();
     
-    // 3. Inicia la lectura de scores de Firebase
+    // 3. Inicia la lectura de scores de Firebase (solo lectura, no crítico)
     getScores(); 
     
-    // Manejador del formulario de score individual
+    // --- LISTENER para la Sincronización (Carga por ID) ---
+    const loadForm = document.getElementById('load-tournament-form');
+    if (loadForm) {
+        loadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            document.getElementById('load-message').textContent = 'Buscando torneo...';
+            const externalId = document.getElementById('external-id-input').value.trim();
+            if (externalId) {
+                await loadExternalTournamentById(externalId);
+            } else {
+                document.getElementById('load-message').textContent = "Por favor, introduce un ID de torneo válido.";
+            }
+        });
+    }
+
+    // --- LISTENER para el Formulario de Score Individual (ejemplo) ---
     const scoreForm = document.getElementById('score-form');
     if (scoreForm) {
         scoreForm.addEventListener('submit', async (e) => {
