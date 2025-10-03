@@ -91,6 +91,7 @@ function guardarDatos() {
 }
 
 function borrarDatos() {
+    // Usamos console.log para evitar el alert() en ambientes restringidos
     if (confirm("⚠️ ¿Estás seguro de que quieres borrar TODOS los datos del torneo (jugadores, resultados y configuración)? Esta acción es irreversible.")) {
         localStorage.clear();
         
@@ -104,7 +105,7 @@ function borrarDatos() {
         currentTournamentId = null; 
         localStorage.removeItem('currentTournamentId');
 
-        alert("✅ Todos los datos han sido borrados. La aplicación se ha reiniciado.");
+        console.log("✅ Todos los datos han sido borrados. La aplicación se ha reiniciado.");
         location.reload(); 
     }
 }
@@ -115,6 +116,8 @@ function borrarDatos() {
  * Guarda o actualiza la configuración base del torneo en Firebase.
  */
 async function saveTournamentConfig() {
+    console.log("DEBUG: 1. saveTournamentConfig() ha sido llamado."); // DEBUG LOG
+
     // Si la variable 'db' no está definida (aunque ya lo comprobamos), salimos
     if (typeof db === 'undefined') {
         console.error("Firebase Firestore 'db' no está inicializado. No se puede guardar.");
@@ -130,10 +133,12 @@ async function saveTournamentConfig() {
 
     const operation = async () => {
         if (currentTournamentId) {
+            console.log("DEBUG: 2A. Intentando ACTUALIZAR documento existente:", currentTournamentId); // DEBUG LOG
             // 1. Torneo existente: Actualizamos el documento por ID
             await db.collection("torneos").doc(currentTournamentId).update(tournamentData);
             return { type: 'UPDATE', id: currentTournamentId };
         } else {
+            console.log("DEBUG: 2B. Intentando CREAR nuevo documento."); // DEBUG LOG
             // 2. Nuevo torneo: Creamos un nuevo documento
             const docRef = await db.collection("torneos").add(tournamentData);
             return { type: 'CREATE', id: docRef.id };
@@ -153,7 +158,8 @@ async function saveTournamentConfig() {
     } catch (error) {
         console.error("❌ ERROR CRÍTICO: Falló la operación de guardado/actualización en /torneos después de múltiples reintentos.", error);
         // Si falla, mostramos una alerta para que el usuario tome acción
-        alert(`❌ ERROR CRÍTICO DE FIREBASE. No se pudo guardar el torneo. Verifica la Consola (F12) para detalles del error. Mensaje: ${error.message}`);
+        // Cambiado de alert() a console.error detallado para evitar el bloqueo del iframe
+        console.error(`❌ ERROR CRÍTICO DE FIREBASE. No se pudo guardar el torneo. Verifica los detalles del error en la Consola. Mensaje: ${error.message}`);
     }
 }
 
@@ -166,13 +172,13 @@ async function configurarMaxJugadores() {
     const nuevoMax = parseInt(input.value);
 
     if (nuevoMax < 4 || nuevoMax % 2 !== 0) { 
-        alert("El número de jugadores debe ser **al menos 4** y debe ser par (4, 6, 8...).");
+        console.error("El número de jugadores debe ser **al menos 4** y debe ser par (4, 6, 8...).");
         input.value = MAX_JUGADORES;
         return;
     }
     
     if (participantes.length > nuevoMax) {
-        alert(`Ya hay ${participantes.length} jugadores registrados. El nuevo máximo debe ser mayor o igual.`);
+        console.error(`Ya hay ${participantes.length} jugadores registrados. El nuevo máximo debe ser mayor o igual.`);
         input.value = MAX_JUGADORES; 
         return;
     }
@@ -184,7 +190,7 @@ async function configurarMaxJugadores() {
     
     guardarDatos();
     actualizarIU();
-    alert(`Torneo configurado para ${MAX_JUGADORES} jugadores.`);
+    console.log(`Torneo configurado para ${MAX_JUGADORES} jugadores.`);
     
     // --> LLAMADA CRÍTICA: Esperamos a que Firebase guarde la configuración.
     await saveTournamentConfig(); 
@@ -227,14 +233,14 @@ async function agregarParticipante() {
         // --> Llamada al guardado de Firebase
         await saveTournamentConfig(); 
     } else if (participantes.length >= MAX_JUGADORES) {
-        alert(`Ya se han añadido el máximo de ${MAX_JUGADORES} participantes.`);
+        console.error(`Ya se han añadido el máximo de ${MAX_JUGADORES} participantes.`);
     }
 }
 
 // IMPORTANTE: Convertimos esta función a async
 async function iniciarTorneo() {
     if (participantes.length !== MAX_JUGADORES) {
-        alert(`El torneo requiere exactamente ${MAX_JUGADORES} jugadores.`);
+        console.error(`El torneo requiere exactamente ${MAX_JUGADORES} jugadores.`);
         return;
     }
 
@@ -303,11 +309,12 @@ function generarGruposHTML() {
 async function registrarResultado(index, isPlayoff = false) {
     const targetArray = isPlayoff ? playoffs.semifinales : partidos;
     const match = targetArray[index];
+    // Modificado para usar console.error en lugar de alert()
     const gamesJ1 = parseInt(document.getElementById(`score-j1-${index}`).value);
     const gamesJ2 = parseInt(document.getElementById(`score-j2-${index}`).value);
 
     if (isNaN(gamesJ1) || isNaN(gamesJ2) || gamesJ1 === gamesJ2) {
-        alert("Por favor, introduce puntuaciones válidas. Los marcadores no pueden ser iguales.");
+        console.error("Por favor, introduce puntuaciones válidas. Los marcadores no pueden ser iguales.");
         return;
     }
 
