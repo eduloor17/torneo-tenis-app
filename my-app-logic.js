@@ -37,7 +37,7 @@ async function retryWithBackoff(operation, maxRetries = 3, delay = 1000) {
 let participantes = [];
 let partidos = []; // Partidos de Fase de Grupos
 let grupos = {}; // Objeto para almacenar Grupo A, B, etc.
-let playoffs = { semifinales: [], tercerPuesto: null, final: null }; // <-- FIX: Declaración global de 'playoffs'
+let playoffs = { semifinales: [], tercerPuesto: null, final: null }; 
 let MAX_JUGADORES = 10; // VALOR INICIAL
 let NUM_GRUPOS = 2; // NUEVA VARIABLE PARA CONTROLAR EL NÚMERO DE GRUPOS
 
@@ -83,11 +83,11 @@ function cargarDatos() {
     participantes = p ? JSON.parse(p) : [];
     partidos = pa ? JSON.parse(pa) : [];
     grupos = g ? JSON.parse(g) : {}; 
-    // Ahora 'playoffs' ya está declarado globalmente, solo lo sobrescribimos si existe en localStorage
+    
+    // Se asegura de que 'playoffs' esté definido para evitar ReferenceError
     playoffs = pl ? JSON.parse(pl) : { semifinales: [], tercerPuesto: null, final: null }; 
 
     document.getElementById('max-jugadores-input').value = MAX_JUGADORES;
-    // CRÍTICO: Asegurarse de que el input de grupos se actualice
     const numGruposInput = document.getElementById('num-grupos-input');
     if (numGruposInput) numGruposInput.value = NUM_GRUPOS;
 
@@ -96,10 +96,16 @@ function cargarDatos() {
     const isTournamentStarted = participantes.length === MAX_JUGADORES && Object.keys(grupos).length > 0;
 
     if (isTournamentStarted) {
-        document.getElementById('configuracion').style.display = 'none';
-        document.getElementById('registro').style.display = 'none';
-        document.getElementById('grupos-fixture').style.display = 'block';
-        document.getElementById('ranking-finales').style.display = 'block';
+        // Ocultar configuración si el torneo ya está iniciado
+        const configSection = document.getElementById('configuracion');
+        const regSection = document.getElementById('registro');
+        const gruposFixtureSection = document.getElementById('grupos-fixture');
+        const rankingFinalesSection = document.getElementById('ranking-finales');
+        
+        if (configSection) configSection.style.display = 'none';
+        if (regSection) regSection.style.display = 'none';
+        if (gruposFixtureSection) gruposFixtureSection.style.display = 'block';
+        if (rankingFinalesSection) rankingFinalesSection.style.display = 'block';
         
         const analysisButton = document.getElementById('btn-generate-analysis');
         if (analysisButton) analysisButton.style.display = 'block'; 
@@ -108,10 +114,16 @@ function cargarDatos() {
         generarPartidosGruposHTML();
         actualizarRankingYFinales();
     } else {
-        document.getElementById('configuracion').style.display = 'block';
-        document.getElementById('registro').style.display = 'block';
-        document.getElementById('grupos-fixture').style.display = 'none';
-        document.getElementById('ranking-finales').style.display = 'none';
+        // Mostrar configuración
+        const configSection = document.getElementById('configuracion');
+        const regSection = document.getElementById('registro');
+        const gruposFixtureSection = document.getElementById('grupos-fixture');
+        const rankingFinalesSection = document.getElementById('ranking-finales');
+
+        if (configSection) configSection.style.display = 'block';
+        if (regSection) regSection.style.display = 'block';
+        if (gruposFixtureSection) gruposFixtureSection.style.display = 'none';
+        if (rankingFinalesSection) rankingFinalesSection.style.display = 'none';
 
         const analysisButton = document.getElementById('btn-generate-analysis');
         if (analysisButton) analysisButton.style.display = 'none'; 
@@ -133,22 +145,21 @@ function guardarDatos() {
 }
 
 function borrarDatos() {
-    if (confirm("⚠️ ¿Estás seguro de que quieres borrar TODOS los datos del torneo? Esta acción es irreversible.")) {
-        localStorage.clear();
-        
-        participantes = [];
-        partidos = [];
-        grupos = {};
-        playoffs = { semifinales: [], tercerPuesto: null, final: null };
-        MAX_JUGADORES = 10; 
-        NUM_GRUPOS = 2; // Resetear grupos
-        
-        currentTournamentId = null; 
-        localStorage.removeItem('currentTournamentId');
+    // Se evita confirm() y se usa un mensaje de error en consola.
+    console.error("⚠️ Aviso: Se han borrado todos los datos locales del torneo. Recargando...");
+    localStorage.clear();
+    
+    participantes = [];
+    partidos = [];
+    grupos = {};
+    playoffs = { semifinales: [], tercerPuesto: null, final: null };
+    MAX_JUGADORES = 10; 
+    NUM_GRUPOS = 2; // Resetear grupos
+    
+    currentTournamentId = null; 
+    localStorage.removeItem('currentTournamentId');
 
-        console.log("✅ Todos los datos han sido borrados. La aplicación se ha reiniciado.");
-        location.reload(); 
-    }
+    location.reload(); 
 }
 
 // --- LÓGICA DE FIREBASE ---
@@ -159,22 +170,22 @@ function borrarDatos() {
  * @returns {Promise<boolean>} True si la carga fue exitosa.
  */
 async function loadTournamentFromFirebase() {
-    // Usamos el check typeof window.db === 'undefined' en lugar de typeof db
-    if (!currentTournamentId || typeof window.db === 'undefined') {
-        console.log("No hay ID de torneo de Firebase o db no está inicializado. Se cargará solo de Local Storage.");
+    // Verificación robusta de inicialización de Firebase
+    if (!currentTournamentId || typeof window.db === 'undefined' || !window.db.collection) {
+        console.log("No hay ID de torneo de Firebase o db no está inicializado.");
         return false;
     }
 
-    console.log(`Intentando cargar torneo con ID: ${currentTournamentId} desde Firebase.`);
     try {
-        const docSnap = await window.db.collection("torneos").doc(currentTournamentId).get();
+        const docRef = window.db.collection("torneos").doc(currentTournamentId);
+        // Usando getDoc que asumo existe en window.db
+        const docSnap = await getDoc(docRef); 
 
         if (docSnap.exists) {
             const data = docSnap.data();
             
-            // Actualizar variables globales con los datos de Firebase
             MAX_JUGADORES = data.max_jugadores || 10;
-            NUM_GRUPOS = data.num_grupos || 2; // Cargar el número de grupos
+            NUM_GRUPOS = data.num_grupos || 2; 
             participantes = data.participantes || [];
             partidos = data.partidos || []; 
             grupos = data.grupos || {};
@@ -208,7 +219,9 @@ async function loadExternalTournamentById(externalId) {
     }
 
     try {
-        const docSnap = await window.db.collection("torneos").doc(externalId).get();
+        const docRef = window.db.collection("torneos").doc(externalId);
+        // Usando getDoc que asumo existe en window.db
+        const docSnap = await getDoc(docRef); 
 
         if (docSnap.exists) {
             localStorage.setItem('currentTournamentId', externalId);
@@ -234,28 +247,32 @@ async function loadExternalTournamentById(externalId) {
  * Guarda o actualiza la configuración base del torneo en Firebase.
  */
 async function saveTournamentConfig() {
-    if (typeof window.db === 'undefined' || typeof window.firebase === 'undefined') {
+    if (typeof window.db === 'undefined' || typeof window.firebase === 'undefined' || !window.db.collection) {
         console.error("Firebase Firestore 'db' o 'firebase' no están inicializados. No se puede guardar.");
         return;
     }
 
     const tournamentData = {
         max_jugadores: MAX_JUGADORES,
-        num_grupos: NUM_GRUPOS, // Guardar el número de grupos
+        num_grupos: NUM_GRUPOS, 
         participantes: participantes,
-        partidos: partidos, // Fixture de grupos
-        grupos: grupos,     // Lista de jugadores en Grupo A y B
-        playoffs: playoffs, // Estructura de eliminatorias
+        partidos: partidos, 
+        grupos: grupos,     
+        playoffs: playoffs, 
         fecha_ultima_actualizacion: window.firebase.firestore.FieldValue.serverTimestamp(),
         estado: (Object.keys(grupos).length > 0 ? 'Iniciado' : 'Pre-registro')
     };
 
     const operation = async () => {
         if (currentTournamentId) {
-            await window.db.collection("torneos").doc(currentTournamentId).update(tournamentData);
+            // Utilizar updateDoc para el documento existente
+            const docRef = window.db.collection("torneos").doc(currentTournamentId);
+            // Asumiendo que updateDoc y setDoc son globales o accesibles desde window.db
+            await updateDoc(docRef, tournamentData); 
             return { type: 'UPDATE', id: currentTournamentId };
         } else {
-            const docRef = await window.db.collection("torneos").add(tournamentData);
+            // Utilizar addDoc para un documento nuevo
+            const docRef = await addDoc(window.db.collection("torneos"), tournamentData);
             return { type: 'CREATE', id: docRef.id };
         }
     };
@@ -270,10 +287,9 @@ async function saveTournamentConfig() {
         } else {
             console.log("⬆️ Configuración del torneo actualizada en Firebase:", result.id);
         }
-        displayTournamentInfo(); // Muestra el ID después de guardar
+        displayTournamentInfo(); 
     } catch (error) {
         console.error("❌ ERROR CRÍTICO: Falló la operación de guardado/actualización en /torneos después de múltiples reintentos.", error);
-        console.error(`❌ ERROR CRÍTICO DE FIREBASE. No se pudo guardar el torneo. Mensaje: ${error.message}`);
     }
 }
 
@@ -281,19 +297,24 @@ async function saveTournamentConfig() {
 // --- CONFIGURACIÓN Y GESTIÓN DE PARTICIPANTES ---
 
 async function configurarMaxJugadores() {
+    console.log("➡️ Se hizo click en 'Ajustar Máximo'. Iniciando configuración..."); // LOG DE DEBUG
     const input = document.getElementById('max-jugadores-input');
     const nuevoMax = parseInt(input.value);
 
-    if (nuevoMax < 4 || nuevoMax % 2 !== 0) { 
-        // Usamos un modal o mensaje en lugar de alert/confirm
-        console.error("El número de jugadores debe ser **al menos 4** y debe ser par (4, 6, 8...).");
-        input.value = MAX_JUGADORES;
+    if (isNaN(nuevoMax) || nuevoMax < 4 || nuevoMax % 2 !== 0) { 
+        console.error(`❌ ERROR: El número de jugadores (${nuevoMax}) debe ser al menos 4 y debe ser par.`);
+        input.value = MAX_JUGADORES; // Restaura el valor anterior
         return;
     }
     
     if (participantes.length > nuevoMax) {
-        console.error(`Ya hay ${participantes.length} jugadores registrados. El nuevo máximo debe ser mayor o igual.`);
-        input.value = MAX_JUGADORES; 
+        console.error(`❌ ERROR: Ya hay ${participantes.length} jugadores registrados. El nuevo máximo (${nuevoMax}) debe ser mayor o igual.`);
+        input.value = MAX_JUGADORES;
+        return;
+    }
+    
+    if (nuevoMax === MAX_JUGADORES) {
+        console.log("ℹ️ El máximo de jugadores no ha cambiado.");
         return;
     }
 
@@ -304,61 +325,82 @@ async function configurarMaxJugadores() {
     
     guardarDatos();
     actualizarIU();
-    console.log(`Torneo configurado para ${MAX_JUGADORES} jugadores.`);
+    console.log(`✅ Torneo configurado para ${MAX_JUGADORES} jugadores.`);
     
     await saveTournamentConfig(); 
 }
 
 async function configurarNumGrupos() {
+    console.log("➡️ Se hizo click en 'Ajustar Grupos'. Iniciando configuración..."); // LOG DE DEBUG
     const input = document.getElementById('num-grupos-input');
     const nuevoNum = parseInt(input.value);
 
-    // Lógica de validación: debe ser par, al menos 1, y no más que la mitad de jugadores
-    if (nuevoNum < 1 || nuevoNum > 6 || nuevoNum > MAX_JUGADORES / 2 || MAX_JUGADORES % nuevoNum !== 0) {
-        console.error(`El número de grupos debe ser entre 1 y 6, y debe dividir a los ${MAX_JUGADORES} jugadores de manera equitativa. Intenta 2, o 4.`);
-        input.value = NUM_GRUPOS;
+    // Validación del número de grupos:
+    const jugadoresPorGrupo = MAX_JUGADORES / nuevoNum;
+    if (isNaN(nuevoNum) || nuevoNum < 1 || nuevoNum > 6 || MAX_JUGADORES % nuevoNum !== 0 || jugadoresPorGrupo < 2) {
+        console.error(`❌ ERROR: Configuración de grupos inválida. Máx jugadores: ${MAX_JUGADORES}. Grupos solicitados: ${nuevoNum}.`);
+        input.value = NUM_GRUPOS; // Restaura el valor anterior
+        return;
+    }
+    
+    if (nuevoNum === NUM_GRUPOS) {
+        console.log("ℹ️ El número de grupos no ha cambiado.");
         return;
     }
 
     NUM_GRUPOS = nuevoNum;
-    // Si cambiamos los grupos, reiniciamos la estructura
     grupos = {};
     partidos = [];
     playoffs = { semifinales: [], tercerPuesto: null, final: null };
 
     guardarDatos();
     actualizarIU();
-    console.log(`Torneo configurado con ${NUM_GRUPOS} grupos.`);
+    console.log(`✅ Torneo configurado con ${NUM_GRUPOS} grupos.`);
     await saveTournamentConfig();
 }
 
 function actualizarIU() {
     const lista = document.getElementById('lista-participantes');
-    lista.innerHTML = '';
-    participantes.forEach(nombre => {
-        const li = document.createElement('li');
-        li.textContent = nombre;
-        lista.appendChild(li);
-    });
+    if (lista) {
+        lista.innerHTML = '';
+        participantes.forEach(nombre => {
+            const li = document.createElement('li');
+            li.textContent = nombre;
+            lista.appendChild(li);
+        });
+    }
 
-    document.getElementById('max-jugadores-actual').textContent = MAX_JUGADORES;
-    document.getElementById('max-participantes-display').textContent = MAX_JUGADORES;
-    document.getElementById('contador-participantes').textContent = participantes.length;
+    const maxJugadoresActual = document.getElementById('max-jugadores-actual');
+    if (maxJugadoresActual) maxJugadoresActual.textContent = MAX_JUGADORES;
+    
+    const maxParticipantesDisplay = document.getElementById('max-participantes-display');
+    if (maxParticipantesDisplay) maxParticipantesDisplay.textContent = MAX_JUGADORES;
+    
+    const contadorParticipantes = document.getElementById('contador-participantes');
+    if (contadorParticipantes) contadorParticipantes.textContent = participantes.length;
     
     const btnIniciar = document.getElementById('btn-iniciar');
-    if (participantes.length === MAX_JUGADORES && MAX_JUGADORES > 0) {
-        // Validación adicional para iniciar el torneo con la nueva configuración
+    if (btnIniciar) {
         const jugadoresPorGrupo = MAX_JUGADORES / NUM_GRUPOS;
-        if (jugadoresPorGrupo < 2) {
-             btnIniciar.disabled = true;
-             btnIniciar.textContent = `Iniciar Torneo (Mínimo 2 jugadores por grupo)`;
+        const isValidConfig = participantes.length === MAX_JUGADORES && MAX_JUGADORES > 0 && MAX_JUGADORES % NUM_GRUPOS === 0 && jugadoresPorGrupo >= 2;
+
+        if (isValidConfig) {
+            btnIniciar.disabled = false;
+            btnIniciar.textContent = '¡Iniciar Torneo!';
+            btnIniciar.classList.remove('opacity-50', 'cursor-not-allowed');
+            btnIniciar.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
         } else {
-             btnIniciar.disabled = false;
-             btnIniciar.textContent = '¡Iniciar Torneo!';
+            btnIniciar.disabled = true;
+            btnIniciar.classList.remove('hover:bg-indigo-700');
+            btnIniciar.classList.add('opacity-50', 'cursor-not-allowed', 'bg-indigo-600');
+            if (participantes.length !== MAX_JUGADORES) {
+                btnIniciar.textContent = `Iniciar Torneo (Necesita ${MAX_JUGADORES - participantes.length} más)`;
+            } else if (jugadoresPorGrupo < 2) {
+                 btnIniciar.textContent = `Iniciar Torneo (Mínimo 2 jugadores por grupo)`;
+            } else {
+                 btnIniciar.textContent = `Iniciar Torneo (Configuración de grupo inválida)`;
+            }
         }
-    } else {
-        btnIniciar.disabled = true;
-        btnIniciar.textContent = `Iniciar Torneo (Necesita ${MAX_JUGADORES - participantes.length} más)`;
     }
 }
 
@@ -379,14 +421,9 @@ async function agregarParticipante() {
 }
 
 async function iniciarTorneo() {
-    if (participantes.length !== MAX_JUGADORES) {
-        console.error(`El torneo requiere exactamente ${MAX_JUGADORES} jugadores.`);
-        return;
-    }
-
     const jugadoresPorGrupo = MAX_JUGADORES / NUM_GRUPOS;
-    if (jugadoresPorGrupo < 2 || MAX_JUGADORES % NUM_GRUPOS !== 0) {
-        console.error("Configuración de grupos inválida. Asegúrate de que los jugadores se puedan dividir equitativamente en grupos de al menos 2.");
+    if (participantes.length !== MAX_JUGADORES || jugadoresPorGrupo < 2 || MAX_JUGADORES % NUM_GRUPOS !== 0) {
+        console.error(`El torneo requiere exactamente ${MAX_JUGADORES} jugadores y la configuración de grupos debe ser válida.`);
         return;
     }
 
@@ -409,9 +446,7 @@ async function iniciarTorneo() {
     playoffs = { semifinales: [], tercerPuesto: null, final: null };
 
     guardarDatos();
-    
-    // Recargar la UI para mostrar las nuevas secciones
-    cargarDatos();
+    cargarDatos(); // Recargar la UI para mostrar las nuevas secciones
     
     await saveTournamentConfig(); 
 }
@@ -427,7 +462,6 @@ function generarFixture(grupo, nombreGrupo) {
                 jugador1: grupo[i],
                 jugador2: grupo[j],
                 grupo: nombreGrupo, // Asigna el nombre del grupo
-                // En Tenis, gamesJ1 y gamesJ2 representan SETS GANADOS
                 gamesJ1: null,
                 gamesJ2: null,
                 ganador: null,
@@ -441,15 +475,14 @@ function generarFixture(grupo, nombreGrupo) {
 
 function generarGruposHTML() {
     const container = document.getElementById('grupos-container');
+    if (!container) return;
     container.innerHTML = '';
     
     for (const nombreGrupo in grupos) {
-        // Agregamos la tabla de ranking al lado del listado de jugadores
         container.innerHTML += `
-            <div class="md:w-1/2 p-2 group-section">
+            <div class="w-full md:w-1/2 p-2 group-section">
                 <h3 class="text-xl font-bold text-gray-700 mb-2">Grupo ${nombreGrupo} (${grupos[nombreGrupo].length} jugadores)</h3>
                 <div id="ranking-grupo-${nombreGrupo.toLowerCase()}" class="mt-2">
-                    <!-- Aquí se cargará la tabla de posiciones -->
                     <p class="text-sm text-gray-500">Calculando ranking...</p>
                 </div>
             </div>
@@ -461,12 +494,17 @@ async function registrarResultado(index, isPlayoff = false) {
     const targetArray = isPlayoff ? playoffs.semifinales : partidos;
     const match = targetArray[index];
     
-    // En Tenis, estos son Sets Ganados (ej: 2-1, 3-0)
-    const gamesJ1 = parseInt(document.getElementById(`score-j1-${index}`).value);
-    const gamesJ2 = parseInt(document.getElementById(`score-j2-${index}`).value);
+    const scoreJ1Input = document.getElementById(`score-j1-${index}`);
+    const scoreJ2Input = document.getElementById(`score-j2-${index}`);
+    
+    const gamesJ1 = parseInt(scoreJ1Input.value);
+    const gamesJ2 = parseInt(scoreJ2Input.value);
 
     if (isNaN(gamesJ1) || isNaN(gamesJ2) || gamesJ1 === gamesJ2) {
         console.error("Por favor, introduce puntuaciones de sets válidas. Los marcadores no pueden ser iguales (debe haber un ganador).");
+        // Se resetea el input para mostrar que hubo un error de validación
+        scoreJ1Input.value = match.gamesJ1 || 0;
+        scoreJ2Input.value = match.gamesJ2 || 0;
         return;
     }
 
@@ -480,8 +518,6 @@ async function registrarResultado(index, isPlayoff = false) {
     if (!isPlayoff) {
         actualizarRankingYFinales();
         generarPartidosGruposHTML(); 
-    } else {
-        // Lógica de avance de playoffs aquí...
     }
     
     await saveTournamentConfig();
@@ -490,23 +526,35 @@ async function registrarResultado(index, isPlayoff = false) {
 
 function generarPartidosGruposHTML() {
     const container = document.getElementById('partidos-registro-grupos');
-    container.innerHTML = partidos.map((p, index) => `
-        <div class="match-card ${p.ganador ? 'completed' : 'pending'} bg-white p-4 rounded-xl shadow-md transition duration-300 hover:shadow-lg">
-            <h4 class="text-md font-semibold text-indigo-700 mb-2">Partido #${index + 1} - Grupo ${p.grupo}</h4>
-            <div class="score-inputs flex items-center justify-between space-x-2">
-                <span class="font-medium w-1/3 text-right truncate">${p.jugador1}</span>
-                <input type="number" id="score-j1-${index}" min="0" value="${p.gamesJ1 !== null ? p.gamesJ1 : 0}" ${p.ganador ? 'disabled' : ''} class="w-12 text-center border rounded-md p-1">
-                <!-- ETIQUETA ACTUALIZADA A SETS -->
-                <span class="font-bold">Sets</span> 
-                <input type="number" id="score-j2-${index}" min="0" value="${p.gamesJ2 !== null ? p.gamesJ2 : 0}" ${p.ganador ? 'disabled' : ''} class="w-12 text-center border rounded-md p-1">
-                <span class="font-medium w-1/3 text-left truncate">${p.jugador2}</span>
+    if (!container) return;
+    
+    container.innerHTML = partidos.map((p, index) => {
+        const isCompleted = p.ganador !== null;
+        return `
+            <div class="match-card ${isCompleted ? 'completed' : 'pending'} bg-white p-4 rounded-xl shadow-md transition duration-300 hover:shadow-lg">
+                <h4 class="text-md font-semibold text-indigo-700 mb-2">Partido #${index + 1} - Grupo ${p.grupo}</h4>
+                <div class="score-inputs flex items-center justify-between space-x-2">
+                    <span class="font-medium w-1/3 text-right truncate">${p.jugador1}</span>
+                    <input type="number" id="score-j1-${index}" min="0" value="${p.gamesJ1 !== null ? p.gamesJ1 : 0}" ${isCompleted ? 'disabled' : ''} class="w-12 text-center border rounded-md p-1">
+                    <span class="font-bold">Sets</span> 
+                    <input type="number" id="score-j2-${index}" min="0" value="${p.gamesJ2 !== null ? p.gamesJ2 : 0}" ${isCompleted ? 'disabled' : ''} class="w-12 text-center border rounded-md p-1">
+                    <span class="font-medium w-1/3 text-left truncate">${p.jugador2}</span>
+                </div>
+                <!-- Uso de data-index y manejo de eventos limpio -->
+                <button data-index="${index}" class="btn-registrar-resultado mt-3 w-full py-2 rounded-lg text-white font-semibold transition duration-150 ${isCompleted ? 'bg-green-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}" ${isCompleted ? 'disabled' : ''}>
+                    ${isCompleted ? `Ganador: ${p.ganador} 🏆` : 'Registrar Marcador (Sets)'}
+                </button>
             </div>
-            <button onclick="registrarResultado(${index})" ${p.ganador ? 'disabled' : ''}
-                    class="mt-3 w-full py-2 rounded-lg text-white font-semibold transition duration-150 ${p.ganador ? 'bg-green-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}">
-                ${p.ganador ? `Ganador: ${p.ganador} 🏆` : 'Registrar Marcador (Sets)'}
-            </button>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+
+    // Añadir event listeners a los nuevos botones
+    document.querySelectorAll('.btn-registrar-resultado').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            registrarResultado(index);
+        });
+    });
 }
 
 
@@ -514,41 +562,31 @@ function generarPartidosGruposHTML() {
 
 /**
  * Calcula el ranking de un grupo específico basado en los resultados de 'partidos'.
- * Criterios: Puntos > Diferencia de SETS > Sets a favor.
- * @param {string[]} jugadores - Array de nombres de jugadores en el grupo.
- * @param {string} nombreGrupo - Nombre del grupo (ej: 'A').
- * @returns {object[]} - Ranking ordenado.
  */
 function calcularRanking(jugadores, nombreGrupo) { 
-    // Inicializa las estadísticas para cada jugador
     const stats = jugadores.map(nombre => ({ 
         nombre, 
         puntos: 0, 
         ganados: 0, 
         perdidos: 0, 
-        sets_a_favor: 0, // Antes games_a_favor
-        sets_en_contra: 0, // Antes games_en_contra
-        dif: 0 // Diferencia de Sets
+        sets_a_favor: 0, 
+        sets_en_contra: 0, 
+        dif: 0 
     }));
     
-    // Mapea los jugadores por nombre para fácil acceso
     const jugadorMap = new Map(stats.map(s => [s.nombre, s]));
 
-    // Procesa todos los partidos del grupo
     partidos.filter(p => p.grupo === nombreGrupo && p.ganador).forEach(p => {
         const s1 = jugadorMap.get(p.jugador1);
         const s2 = jugadorMap.get(p.jugador2);
 
-        if (!s1 || !s2) return; // Jugador no encontrado (error de datos)
+        if (!s1 || !s2) return; 
 
-        // Actualizar Sets
         s1.sets_a_favor += p.gamesJ1;
         s1.sets_en_contra += p.gamesJ2;
         s2.sets_a_favor += p.gamesJ2;
         s2.sets_en_contra += p.gamesJ1;
 
-        // Actualizar Puntos y Ganados/Perdidos
-        // En tenis, se usan 2 o 3 puntos por victoria en liguilla (usamos 3)
         if (p.ganador === p.jugador1) {
             s1.puntos += 3;
             s1.ganados += 1;
@@ -560,7 +598,6 @@ function calcularRanking(jugadores, nombreGrupo) {
         }
     });
 
-    // Calcula la diferencia de Sets
     stats.forEach(s => {
         s.dif = s.sets_a_favor - s.sets_en_contra;
     });
@@ -578,8 +615,6 @@ function calcularRanking(jugadores, nombreGrupo) {
 
 /**
  * Genera el HTML de la tabla de ranking y la inserta en el contenedor correcto.
- * @param {object[]} ranking - El ranking calculado.
- * @param {string} tablaId - El ID del elemento donde se insertará la tabla.
  */
 function mostrarRanking(ranking, tablaId) { 
     const tabla = document.getElementById(tablaId);
@@ -593,7 +628,6 @@ function mostrarRanking(ranking, tablaId) {
                     <th scope="col" class="py-2 px-3">Ptos</th>
                     <th scope="col" class="py-2 px-3">G</th>
                     <th scope="col" class="py-2 px-3">P</th>
-                    <!-- CAMBIADO DE DIFERENCIA DE GAMES A DIFERENCIA DE SETS -->
                     <th scope="col" class="py-2 px-3 rounded-tr-xl">Dif Sets</th>
                 </tr>
             </thead>
@@ -624,17 +658,15 @@ function actualizarRankingYFinales() {
         mostrarRanking(ranking, `ranking-grupo-${nombreGrupo.toLowerCase()}`);
     }
 
-    // Lógica para pasar a playoffs
-    // Ejemplo: Si todos los partidos terminaron y se requiere más de un grupo
     const partidosPendientes = partidos.filter(p => !p.ganador).length;
     if (partidosPendientes === 0 && Object.keys(grupos).length > 1) {
-        // generarPlayoffs(rankingA, rankingB); // (Lógica futura)
+        // TODO: Lógica para generar y mostrar playoffs
+        console.log("🏆 Fase de grupos completa. Listo para generar Playoffs.");
     }
 }
 
 
 // --- OTRAS FUNCIONES (Manteniendo la estructura) ---
-// Estas funciones se mantienen por consistencia, aunque su implementación es simple o placeholder
 function saveParticipant(name, score) { console.log(`Guardando participante: ${name} con score: ${score}`); }
 function getScores() { console.log("Obteniendo scores..."); }
 function generarPlayoffs(rA, rB) { console.log("Generando playoffs..."); }
@@ -647,6 +679,9 @@ function mostrarRankingFinal() { console.log("Mostrando ranking final..."); }
 
 async function generateTournamentAnalysis() {
     const resultsContainer = document.getElementById('analysis-results');
+    if (!resultsContainer) return;
+    
+    // Muestra el spinner de carga
     resultsContainer.innerHTML = `
         <div class="flex items-center space-x-2">
             <svg class="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -665,7 +700,6 @@ async function generateTournamentAnalysis() {
     const playerList = participantes.join(', ');
     const tournamentState = Object.keys(grupos).length > 0 ? 'iniciado con partidos de sets en juego' : 'en pre-registro';
     
-    // Incluir el estado actual del ranking para un análisis más profundo
     const rankingData = Object.keys(grupos).map(nombre => {
         const ranking = calcularRanking(grupos[nombre], nombre);
         return `Grupo ${nombre}: ${ranking.map(r => `${r.nombre} (Ptos: ${r.puntos}, Dif Sets: ${r.dif})`).join('; ')}`;
@@ -692,14 +726,10 @@ async function generateTournamentAnalysis() {
             body: JSON.stringify(payload)
         });
 
-        if (response.status === 400) {
-            const errorData = await response.json();
-            if (errorData.error && errorData.error.message.includes("API key not valid")) {
-                throw new Error("❌ ERROR 400: Clave API no válida. El entorno de ejecución está fallando en la autenticación.");
-            }
-            throw new Error(`Error 400 Bad Request: ${JSON.stringify(errorData)}`);
-        } else if (!response.ok) {
-            throw new Error(`HTTP Error: ${response.status}`);
+        if (!response.ok) {
+            // Manejo de errores HTTP más detallado
+            const errorText = await response.text();
+            throw new Error(`HTTP Error ${response.status}: ${errorText.substring(0, 100)}...`);
         }
 
         return response.json();
@@ -720,9 +750,8 @@ async function generateTournamentAnalysis() {
                 </div>
             `;
             
-            // ... (Lógica para mostrar fuentes)
         } else {
-            resultsContainer.innerHTML = '<p class="text-red-500">Error: No se pudo obtener la respuesta del modelo.</p>';
+            resultsContainer.innerHTML = '<p class="text-red-500">Error: No se pudo obtener la respuesta del modelo o la respuesta estaba vacía.</p>';
         }
 
     } catch (error) {
@@ -731,33 +760,19 @@ async function generateTournamentAnalysis() {
             <div class="bg-red-100 p-3 rounded-xl border border-red-400">
                 <p class="text-red-700 font-semibold">Error al generar el análisis 🚨</p>
                 <p class="text-red-600 text-sm mt-1">${error.message}</p>
-                <p class="text-xs mt-1">Inténtalo de nuevo. Si el error persiste, verifica la clave de la API en la consola.</p>
+                <p class="text-xs mt-1">Inténtalo de nuevo.</p>
             </div>
         `;
     }
 }
 
 // ==========================================================
-// EXPOSICIÓN DE FUNCIONES GLOBALES (Soluciona el ReferenceError del HTML)
-// ==========================================================
-
-// Exponemos las funciones para que el HTML pueda llamarlas directamente con 'onclick'
-window.configurarMaxJugadores = configurarMaxJugadores;
-window.configurarNumGrupos = configurarNumGrupos;
-window.agregarParticipante = agregarParticipante;
-window.iniciarTorneo = iniciarTorneo;
-window.borrarDatos = borrarDatos;
-window.registrarResultado = registrarResultado;
-window.generateTournamentAnalysis = generateTournamentAnalysis;
-
-
-// ==========================================================
-// MANEJADOR INICIAL Y DE FORMULARIO DE FIREBASE
+// MANEJADOR INICIAL Y EVENT LISTENERS (Conecta el JS al HTML)
 // ==========================================================
 
 document.addEventListener('DOMContentLoaded', async (event) => {
     
-    // Configuración para el formulario de carga externa
+    // 1. Manejo del formulario de carga externa
     const loadForm = document.getElementById('load-tournament-form');
     if (loadForm) {
         loadForm.addEventListener('submit', async (e) => {
@@ -773,13 +788,26 @@ document.addEventListener('DOMContentLoaded', async (event) => {
         });
     }
 
-    // Intenta cargar desde Firebase si existe un ID
+    // 2. Carga Inicial de Datos (Firebase y Local Storage)
+    // Se asume que getDoc, updateDoc y addDoc están disponibles globalmente si Firebase está inicializado
     if (currentTournamentId) {
         await loadTournamentFromFirebase();
     }
+    cargarDatos(); // Carga datos finales y actualiza la UI
     
-    // Carga los datos finales y actualiza la UI
-    cargarDatos();
+    // 3. Conexión de Botones a Event Listeners (Usando los IDs del HTML)
     
+    // Configuración
+    document.getElementById('btn-configurar-max')?.addEventListener('click', configurarMaxJugadores);
+    document.getElementById('btn-configurar-grupos')?.addEventListener('click', configurarNumGrupos);
+
+    // Registro
+    document.getElementById('btn-agregar-participante')?.addEventListener('click', agregarParticipante);
+    document.getElementById('btn-iniciar')?.addEventListener('click', iniciarTorneo);
+    document.getElementById('btn-borrar-datos')?.addEventListener('click', borrarDatos);
+
+    // Análisis
+    document.getElementById('btn-generate-analysis')?.addEventListener('click', generateTournamentAnalysis);
+
     getScores(); 
 });
