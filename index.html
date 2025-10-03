@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -75,17 +75,17 @@
         </div>
     </section>
 
-    <!-- ============================================================== -->
-    <!-- ESTE BLOQUE HA SIDO CORREGIDO PARA USAR FIREBASE V8 (8.10.0)   -->
-    <!-- V8 crea el objeto global 'firebase' que requiere tu código.    -->
-    <!-- ============================================================== -->
+    <!-- ========================================================= -->
+    <!-- INICIALIZACIÓN DE FIREBASE (V8 CDN y Configuración) -->
+    <!-- Asegúrate de que estos scripts estén al final del body -->
+    <!-- ========================================================= -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    
+
     <script>
         // Your web app's Firebase configuration
         const firebaseConfig = {
-            // Asegúrate de que tu clave esté aquí
+            // Nota: Aquí está tu clave API real
             apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA", 
             authDomain: "precisiontennisscores.firebaseapp.com",
             projectId: "precisiontennisscores",
@@ -97,29 +97,17 @@
         
         // Initialize Firebase (V8)
         const app = firebase.initializeApp(firebaseConfig);
+        // La variable 'db' es crucial y ahora está definida correctamente
         const db = firebase.firestore(); 
         
         console.log("✅ Firebase App and Firestore initialized!");
-    
-        // ==============================================
-        // FUNCIÓN DE PRUEBA DE ESCRITURA INMEDIATA
-        // ==============================================
-        db.collection("config_test").add({
-            check: true,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            message: "Successful initial write test."
-        })
-        .then(() => {
-            console.log("🔥 TEST EXITOSO: Documento de prueba añadido a la colección 'config_test'. Las reglas están bien.");
-        })
-        .catch((error) => {
-            console.error("❌ TEST FALLIDO: No se pudo escribir en Firestore.", error.message);
-            alert("¡Error de Reglas de Seguridad! Por favor, verifica tu consola de Firebase y publica la regla 'allow read, write: if true;'.");
-        });
+
+        // La función de prueba de escritura inmediata ha sido eliminada.
+        // La escritura ahora depende de la función configurarMaxJugadores() en my-app-logic.js
     </script>
         
+    <!-- Lógica principal de la aplicación -->
     <script src="my-app-logic.js"></script>
-
     
 </body>
 </html>
