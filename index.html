@@ -81,11 +81,11 @@
     <!-- ============================================================== -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
+    
     <script>
         // Your web app's Firebase configuration
         const firebaseConfig = {
-            // Nota: He ocultado tu clave API por seguridad, pero debe estar aquí.
+            // Asegúrate de que tu clave esté aquí
             apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA", 
             authDomain: "precisiontennisscores.firebaseapp.com",
             projectId: "precisiontennisscores",
@@ -95,15 +95,31 @@
             measurementId: "G-C842BQXWXN"
         };
         
-        // Initialize Firebase (la variable 'firebase' ahora existe gracias a los CDNs V8)
+        // Initialize Firebase (V8)
         const app = firebase.initializeApp(firebaseConfig);
-        // La variable 'db' es definida correctamente.
         const db = firebase.firestore(); 
         
         console.log("✅ Firebase App and Firestore initialized!");
-    </script>
     
+        // ==============================================
+        // FUNCIÓN DE PRUEBA DE ESCRITURA INMEDIATA
+        // ==============================================
+        db.collection("config_test").add({
+            check: true,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            message: "Successful initial write test."
+        })
+        .then(() => {
+            console.log("🔥 TEST EXITOSO: Documento de prueba añadido a la colección 'config_test'. Las reglas están bien.");
+        })
+        .catch((error) => {
+            console.error("❌ TEST FALLIDO: No se pudo escribir en Firestore.", error.message);
+            alert("¡Error de Reglas de Seguridad! Por favor, verifica tu consola de Firebase y publica la regla 'allow read, write: if true;'.");
+        });
+    </script>
+        
     <script src="my-app-logic.js"></script>
+
     
 </body>
 </html>
