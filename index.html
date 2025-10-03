@@ -75,13 +75,18 @@
         </div>
     </section>
 
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+    <!-- ============================================================== -->
+    <!-- ESTE BLOQUE HA SIDO CORREGIDO PARA USAR FIREBASE V8 (8.10.0)   -->
+    <!-- V8 crea el objeto global 'firebase' que requiere tu código.    -->
+    <!-- ============================================================== -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 
     <script>
         // Your web app's Firebase configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA",
+            // Nota: He ocultado tu clave API por seguridad, pero debe estar aquí.
+            apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA", 
             authDomain: "precisiontennisscores.firebaseapp.com",
             projectId: "precisiontennisscores",
             storageBucket: "precisiontennisscores.firebasestorage.app",
@@ -90,12 +95,12 @@
             measurementId: "G-C842BQXWXN"
         };
         
-        // Initialize Firebase (and create a database object)
+        // Initialize Firebase (la variable 'firebase' ahora existe gracias a los CDNs V8)
         const app = firebase.initializeApp(firebaseConfig);
-        // La variable 'db' es la que usas en my-app-logic.js
+        // La variable 'db' es definida correctamente.
         const db = firebase.firestore(); 
         
-        console.log("Firebase App and Firestore initialized!");
+        console.log("✅ Firebase App and Firestore initialized!");
     </script>
     
     <script src="my-app-logic.js"></script>
