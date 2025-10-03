@@ -23,6 +23,17 @@
         .match-card {
             border-left: 5px solid #6366f1; /* indigo-500 */
         }
+        .playoff-bracket {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            align-items: center;
+        }
+        .playoff-column {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
     </style>
 </head>
 <body>
@@ -34,6 +45,13 @@
             <div id="tournament-id-display" class="text-center mt-3">
                 <!-- Se llenará con JS al cargar -->
             </div>
+            
+            <!-- NUEVA POSICIÓN DEL BOTÓN DE BORRADO GLOBAL -->
+            <button id="btn-borrar-datos"
+                    class="mt-4 w-full md:w-auto py-2 px-4 rounded-lg text-red-600 border border-red-400 hover:bg-red-50 transition duration-150 font-semibold">
+                ⚠️ Borrar Torneo y Datos Locales
+            </button>
+            
         </header>
 
         <!-- Sección de Carga de Torneo Externo -->
@@ -104,11 +122,7 @@
                             class="w-full py-3 rounded-lg text-white font-bold transition duration-150 bg-indigo-600 opacity-50 cursor-not-allowed">
                         Iniciar Torneo (Necesita más)
                     </button>
-                    <!-- BOTÓN: Ahora con ID para JS -->
-                    <button id="btn-borrar-datos"
-                            class="w-full py-2 rounded-lg text-red-500 border border-red-500 hover:bg-red-50 transition duration-150">
-                        Borrar Torneo Local
-                    </button>
+                    
                 </div>
 
                 <!-- Columna de Lista -->
@@ -148,12 +162,15 @@
         <!-- SECCIÓN 4: RANKING Y FINALES -->
         <div id="ranking-finales" class="container-card p-6 mb-8" style="display: none;">
             <h2 class="text-2xl font-bold text-gray-800 mb-4">4. Etapa Final y Ranking General</h2>
+            
             <div id="playoffs-container">
-                <p class="text-gray-600">La estructura de playoffs se generará automáticamente cuando la fase de grupos esté completa.</p>
+                <p class="text-gray-600 mb-4">La estructura de playoffs se generará automáticamente cuando la fase de grupos esté completa.</p>
                 <!-- Semifinales, Final, 3er Puesto se insertarán aquí -->
             </div>
-            <div id="ranking-final" class="mt-6">
-                <!-- Ranking final del torneo -->
+
+            <h3 class="text-xl font-bold text-gray-700 mt-6 pt-4 border-t">Ranking General Final</h3>
+            <div id="ranking-final" class="mt-4">
+                <p class="text-gray-600">El ranking general final se calculará al terminar todos los partidos de la liguilla y los playoffs.</p>
             </div>
         </div>
         
@@ -161,7 +178,7 @@
 
     <!-- INICIALIZACIÓN DE FIREBASE (REQUIERE LA VARIABLE __firebase_config Y __initial_auth_token) -->
     <script type="module">
-        // Importaciones de Firebase (DEBEN ESTAR AL INICIO DEL MÓDULO, ¡AQUÍ ESTÁ LA CORRECCIÓN CLAVE!)
+        // Importaciones de Firebase (DEBEN ESTAR AL INICIO DEL MÓDULO)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, updateDoc, addDoc, getDoc, FieldValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -179,19 +196,22 @@
             const app = initializeApp(firebaseConfig);
             window.db = getFirestore(app);
             const auth = getAuth(app);
-            
+            window.auth = auth; // Exponer auth para usar el ID de usuario
+
             setLogLevel('Debug'); // Útil para depuración de Firestore
 
             // 2. Autenticación (Usando custom token si existe, sino anónima)
             const authenticate = async () => {
                 try {
+                    let userCredential;
                     if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                        console.log("✅ Autenticado con token personalizado.");
+                        userCredential = await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("✅ Autenticado con token personalizado. UID:", userCredential.user.uid);
                     } else {
-                        await signInAnonymously(auth);
-                        console.log("✅ Autenticado anónimamente.");
+                        userCredential = await signInAnonymously(auth);
+                        console.log("✅ Autenticado anónimamente. UID:", userCredential.user.uid);
                     }
+                    window.userId = userCredential.user.uid; // Exponer el ID del usuario
                 } catch (error) {
                     console.error("❌ Error de autenticación en Firebase:", error);
                 }
