@@ -68,6 +68,11 @@ function displayTournamentInfo() {
 
 // --- GESTIÓN DE DATOS LOCALES ---
 
+/**
+ * Carga el estado del torneo desde Local Storage y actualiza la UI.
+ * Nota: Esta función es clave para inicializar la UI después de cargar
+ * de Firebase o si no hay un torneo en la nube.
+ */
 function cargarDatos() {
     const max = localStorage.getItem('maxJugadores');
     if (max) MAX_JUGADORES = parseInt(max);
@@ -103,6 +108,10 @@ function cargarDatos() {
     displayTournamentInfo(); // Muestra el ID al cargar
 }
 
+/**
+ * Guarda el estado actual de las variables globales en Local Storage.
+ * Útil para la persistencia básica y para replicar el estado de Firebase.
+ */
 function guardarDatos() {
     localStorage.setItem('maxJugadores', MAX_JUGADORES);
     localStorage.setItem('participantes', JSON.stringify(participantes));
@@ -132,6 +141,53 @@ function borrarDatos() {
 }
 
 // --- LÓGICA DE FIREBASE ---
+
+/**
+ * Carga el estado completo del torneo desde Firebase usando el currentTournamentId.
+ * Si tiene éxito, guarda el estado en Local Storage para persistencia local.
+ * @returns {Promise<boolean>} True si la carga fue exitosa.
+ */
+async function loadTournamentFromFirebase() {
+    if (!currentTournamentId || typeof db === 'undefined') {
+        console.log("No hay ID de torneo de Firebase o db no está inicializado. Se cargará solo de Local Storage.");
+        return false;
+    }
+
+    console.log(`Intentando cargar torneo con ID: ${currentTournamentId} desde Firebase.`);
+    try {
+        // En un ambiente con la librería de Firebase v9 o superior, usaríamos doc(db, "torneos", currentTournamentId)
+        // Aquí usamos la sintaxis de Firebase v8 compatible con este entorno:
+        const docSnap = await db.collection("torneos").doc(currentTournamentId).get();
+
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            
+            // Actualizar variables globales con los datos de Firebase
+            MAX_JUGADORES = data.max_jugadores || 10;
+            participantes = data.participantes || [];
+            // Aseguramos que los arrays y objetos complejos se carguen
+            partidos = data.partidos || []; 
+            grupos = data.grupos || { A: [], B: [] };
+            playoffs = data.playoffs || { semifinales: [], tercerPuesto: null, final: null };
+
+            // CRÍTICO: Guardar en Local Storage para mantener la consistencia en el dispositivo que acaba de cargar
+            guardarDatos(); 
+
+            console.log("✅ Datos del torneo cargados exitosamente desde Firebase.");
+            return true;
+
+        } else {
+            console.warn("Documento de Firebase no encontrado para el ID:", currentTournamentId);
+            currentTournamentId = null;
+            localStorage.removeItem('currentTournamentId');
+            return false;
+        }
+    } catch (error) {
+        console.error("Error al cargar el torneo desde Firebase. Se usará Local Storage:", error);
+        return false;
+    }
+}
+
 
 /**
  * Guarda o actualiza la configuración base del torneo en Firebase.
@@ -433,13 +489,19 @@ function actualizarRankingYFinales() { /* ... tu código ... */ }
 // MANEJADOR INICIAL Y DE FORMULARIO DE FIREBASE
 // ==========================================================
 
-document.addEventListener('DOMContentLoaded', (event) => {
+document.addEventListener('DOMContentLoaded', async (event) => {
     
-    // 1. Cargar datos del torneo original
+    // 1. CRÍTICO: Intentamos cargar desde Firebase si hay un ID guardado.
+    // Esto SOBRESCRIBE los datos de Local Storage si tiene éxito.
+    if (currentTournamentId) {
+        await loadTournamentFromFirebase();
+    }
+    
+    // 2. Cargar datos desde Local Storage (ya sea los antiguos o los recién sincronizados)
+    // Esto asegura que la UI se inicialice con la información correcta.
     cargarDatos();
     
-    // 2. Inicia la lectura de scores de Firebase
-    // Nota: Esta lectura es asíncrona, no bloquea el inicio
+    // 3. Inicia la lectura de scores de Firebase
     getScores(); 
     
     // Manejador del formulario de score individual
