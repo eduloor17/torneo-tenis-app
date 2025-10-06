@@ -29,7 +29,7 @@
           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
         </path>
       </svg>
-      <p class="mt-3 text-lg font-semibold text-gray-700">Loading Tournament...</p>
+      <p class="mt-3 text-lg font-semibold text-gray-700">Connecting to Cloud Tournament...</p>
     </div>
   </div>
 
@@ -38,16 +38,16 @@
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
         <h1 class="text-3xl font-extrabold text-indigo-800">🎾 Tennis Tournament Manager</h1>
         <div class="mt-3 md:mt-0 flex flex-col items-end">
-          <div id="tournament-id-display" class="text-right"></div>
+                    <div id="tournament-id-display" class="text-right"></div>
           <button id="btn-borrar-datos"
             class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
-            Reset Tournament (Clear Local)
+            Reset Tournament (Start New)
           </button>
         </div>
       </div>
 
       <div class="mt-4 pt-4 border-t border-gray-100">
-        <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
           <input type="text" id="external-id-input" placeholder="Enter a tournament ID to load"
             class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
           <button type="submit"
@@ -139,31 +139,56 @@
     <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    // Firestore imports needed for cross-device sync
+    import { getFirestore, setDoc, doc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    window.firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    // *** YOUR FIREBASE CONFIGURATION IS INSERTED HERE ***
+    const firebaseConfig = {
+      apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA",
+      authDomain: "precisiontennisscores.firebaseapp.com",
+      projectId: "precisiontennisscores",
+      storageBucket: "precisiontennisscores.firebasestorage.app",
+      messagingSenderId: "847832314171",
+      appId: "1:847832314171:web:ce61405a155f67bf4ac71e",
+      measurementId: "G-C842BQXWXN"
+    };
+    
+    window.db = null;
+    window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
+    window.isCloudMode = false;
+
     const loadingOverlay = document.getElementById('loading-overlay');
-    
-    // Hide the loading overlay immediately (unless Firebase is active)
-    loadingOverlay.style.display = 'none';
+    loadingOverlay.style.display = 'flex'; // Show loading screen while connecting
 
-    if (Object.keys(window.firebaseConfig).length > 0) {
-      window.app = initializeApp(window.firebaseConfig);
+    if (Object.keys(firebaseConfig).length > 0) {
+      window.app = initializeApp(firebaseConfig);
       window.db = getFirestore(window.app);
       window.auth = getAuth(window.app);
-      setLogLevel('debug');
+      window.isCloudMode = true;
 
       onAuthStateChanged(window.auth, async (user) => {
         if (!user) await signInAnonymously(window.auth);
-        window.userId = window.auth.currentUser.uid;
-        // App logic is now loaded via my-app-logic.js's DOMContentLoaded listener
+        
+        // If no tournament ID is stored, use the Firebase Auth UID as the new ID
+        if (!localStorage.getItem("current-tournament-id")) {
+             window.userId = window.auth.currentUser.uid;
+        }
+
+        // Re-call loadAndInitializeLogic after Firebase setup completes
+        if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
+        loadingOverlay.style.display = 'none';
       });
     } else {
-      console.warn("⚠️ No Firebase config — running in local mode.");
-      window.db = null;
-      window.userId = crypto.randomUUID();
-      // App logic is now loaded via my-app-logic.js's DOMContentLoaded listener
+      console.warn("⚠️ No Firebase config — running in local mode. Data will NOT sync.");
+      // In local mode, we still call the logic, but it uses localStorage
+      if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
+      loadingOverlay.style.display = 'none';
     }
+    
+    // Make sure Firestore functions are globally available for my-app-logic.js
+    window.setDoc = setDoc;
+    window.doc = doc;
+    window.getDoc = getDoc;
   </script>
 
     <script type="module" src="./my-app-logic.js"></script>
