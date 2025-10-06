@@ -322,7 +322,7 @@ function generateMatches() {
             p1: group[i], 
             p2: group[j],
             winner: null, 
-            scores: [] // Array of arrays: [[p1_games, p2_games, tiebreak_score (optional)]]
+            scores: [] 
           });
         }
       }
@@ -340,8 +340,8 @@ function generateMatches() {
             id: crypto.randomUUID(),
             type: "doubles",
             group: groupIndex + 1,
-            p1: teams[i], // Team 1 is player 1 in the data structure
-            p2: teams[j], // Team 2 is player 2
+            p1: teams[i], 
+            p2: teams[j], 
             winner: null,
             scores: [],
           });
@@ -355,10 +355,10 @@ function generateMatches() {
 
 function renderMatches() {
     const container = document.getElementById("matches-container");
-    container.innerHTML = ''; // Clear previous content
-
+    
     if (matches.length === 0) {
         container.innerHTML = '<p class="text-gray-500 mt-4">No matches generated yet. Fill the players list and click "Generate Matches".</p>';
+        document.getElementById("standings-list").innerHTML = '<p class="text-gray-500">No players registered or no matches have been played yet.</p>';
         return;
     }
 
@@ -367,7 +367,7 @@ function renderMatches() {
     // ----------------------------------------------------------------
     let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Match Results (Best of 3 Sets)</h2>
-        <p class="text-sm text-gray-600 mb-4">Enter games won (0-8). If the set is 7-7, use 7-8 for the winner, then enter the tiebreak score in the optional field (e.g., '10' for 10-point tiebreak). Two winning sets determines the match winner.</p>
+        <p class="text-sm text-gray-600 mb-4">Enter games won (0-8). Use 7-6 for a tiebreak set, then use the **Tiebreak** field below the score to register the *winner's points* (e.g., if the set was 7-6 (7-5), enter '7').</p>
         <div id="match-list" class="space-y-4">`;
 
     const groupedMatches = matches.reduce((acc, match) => {
@@ -379,39 +379,13 @@ function renderMatches() {
     for (const group in groupedMatches) {
         html += `<div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
             <h3 class="text-xl font-semibold text-indigo-700 mb-3">Group ${group}</h3>
-            <div class="space-y-3">`;
+            <div id="group-${group}-matches" class="space-y-3">`;
 
-        groupedMatches[group].forEach((match, index) => {
-            const isCompleted = match.winner !== null;
-            const p1Name = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
-            const p2Name = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
-            
-            const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
-            
-            html += `
-                <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
-                    <p class="text-lg font-bold text-gray-900 mb-2">Match ${index + 1}: ${p1Name} vs ${p2Name}</p>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead>
-                                <tr>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Team/Player</th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Set 1</th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Set 2</th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Set 3</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200">
-                                ${renderScoreRow(match, 0, p1Name, 'p1')}
-                                ${renderScoreRow(match, 1, p2Name, 'p2')}
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="mt-3 text-sm font-semibold text-green-700" id="winner-${match.id}">
-                        ${isCompleted ? `Winner: ${match.winner} (Score: ${getMatchScoreString(match)})` : 'Match in progress / Not started'}
-                    </p>
-                </div>
-            `;
+        groupedMatches[group].forEach((match) => {
+             // We use a container with a unique ID for dynamic updates
+             html += `<div id="match-card-${match.id}">
+                ${renderMatchCard(match)}
+             </div>`;
         });
         
         html += `</div></div>`;
@@ -431,10 +405,46 @@ function renderMatches() {
 
     container.innerHTML = html;
     
-    // Attach Event Listeners
+    // Attach Event Listeners (only once after the initial render)
     document.querySelectorAll('.score-input').forEach(input => {
-        input.addEventListener('change', handleScoreChange);
+        // Use 'input' event for real-time saving and update
+        input.addEventListener('input', handleScoreChange);
     });
+}
+
+// Renders the single match card HTML structure
+function renderMatchCard(match, index = 0) {
+    const isCompleted = match.winner !== null;
+    const p1Name = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
+    const p2Name = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
+    
+    const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
+    
+    let cardHtml = `
+        <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
+            <p class="text-lg font-bold text-gray-900 mb-2">Match: ${p1Name} vs ${p2Name}</p>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Team/Player</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Set 1</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Set 2</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Set 3</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        ${renderScoreRow(match, 0, p1Name, 'p1')}
+                        ${renderScoreRow(match, 1, p2Name, 'p2')}
+                    </tbody>
+                </table>
+            </div>
+            <p class="mt-3 text-sm font-semibold text-green-700" id="winner-status-${match.id}">
+                ${isCompleted ? `🏆 Winner: ${match.winner} (Score: ${getMatchScoreString(match)})` : 'Match in progress / Not started'}
+            </p>
+        </div>
+    `;
+    return cardHtml;
 }
 
 // Helper to render one row in the score table
@@ -448,16 +458,17 @@ function renderScoreRow(match, playerIndex, name, pKey) {
     for (let s = 0; s < 3; s++) {
         const setScore = scores[s] || [];
         const games = isP1 ? setScore[0] : setScore[1];
-        const tiebreak = setScore[2]; // Tiebreak score is the 3rd element
+        // The tiebreak score is stored from the WINNER's perspective in the 3rd element
+        const tiebreak = setScore[2]; 
         
         rowHtml += `<td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
             <div class="flex flex-col items-center">
                 <input type="number" min="0" max="8" value="${games !== undefined ? games : ''}" 
-                       data-match-id="${match.id}" data-player="${pKey}" data-set-index="${s}" data-is-tiebreak="false"
+                       data-match-id="${match.id}" data-player="${pKey}" data-set-index="${s}" data-score-type="games"
                        class="score-input w-12 p-1 border border-gray-300 rounded-md text-center text-sm mb-1 focus:ring-indigo-500">
                 <input type="number" min="0" max="15" value="${tiebreak !== undefined ? tiebreak : ''}" 
                        placeholder="TB"
-                       data-match-id="${match.id}" data-player="${pKey}" data-set-index="${s}" data-is-tiebreak="true"
+                       data-match-id="${match.id}" data-player="${pKey}" data-set-index="${s}" data-score-type="tiebreak"
                        class="score-input w-10 p-1 border border-gray-300 rounded-md text-center text-xs bg-yellow-50 focus:ring-indigo-500">
             </div>
         </td>`;
@@ -467,18 +478,37 @@ function renderScoreRow(match, playerIndex, name, pKey) {
     return rowHtml;
 }
 
-// Helper to format the match score string
+// Helper to format the match score string for display
 function getMatchScoreString(match) {
     return match.scores.map(set => {
-        const score = `${set[0]}-${set[1]}`;
-        // If a tiebreak score is present, append it in parentheses (e.g. 7-6(5))
-        if (set.length === 3 && set[2] !== undefined && set[2] !== '') {
-            const loserTBScore = set[0] > set[1] ? set[2] : set[2] - (set[0] === 7 && set[1] === 7 ? 0 : 2); // Simple rule: winner's tiebreak score is stored, loser is -2
-            return `${score}(${loserTBScore})`;
+        const p1Games = set[0];
+        const p2Games = set[1];
+        
+        // Only include completed sets in the score string
+        if (p1Games === undefined || p2Games === undefined) return ''; 
+
+        const score = `${p1Games}-${p2Games}`;
+        
+        // Handle Tiebreak display
+        if ((p1Games === 7 && p2Games === 6) || (p1Games === 6 && p2Games === 7) || (p1Games === 7 && p2Games === 7)) {
+            const tiebreakScore = set[2];
+            if (tiebreakScore !== undefined && tiebreakScore !== '') {
+                // Determine the loser's tiebreak score
+                let loserTBScore = 0;
+                if (p1Games > p2Games) { // P1 won the set
+                    loserTBScore = tiebreakScore - 2;
+                } else { // P2 won the set
+                    loserTBScore = tiebreakScore - 2;
+                }
+                
+                // For a 7-point tiebreak: 7-6(5). For a 10-point tiebreak: 7-7(8) (using simplified notation)
+                return `${score}(${loserTBScore})`;
+            }
         }
         return score;
-    }).join(' ');
+    }).filter(s => s !== '').join(' ');
 }
+
 
 // ---------------------------
 // MATCH RESULT HANDLER
@@ -486,10 +516,12 @@ function getMatchScoreString(match) {
 function handleScoreChange(event) {
     const input = event.target;
     const matchId = input.dataset.matchId;
-    const pKey = input.dataset.player; // 'p1' or 'p2'
+    const pKey = input.dataset.player; 
     const setIndex = parseInt(input.dataset.setIndex);
-    const isTiebreakInput = input.dataset.isTiebreak === 'true';
-    let value = input.value === '' ? undefined : parseInt(input.value);
+    const scoreType = input.dataset.scoreType; // 'games' or 'tiebreak'
+    
+    // Use `input.value` to get the current string value and convert to number, or use `undefined` if empty
+    let value = input.value.trim() === '' ? undefined : parseInt(input.value.trim());
 
     // Find the match
     const matchIndex = matches.findIndex(m => m.id === matchId);
@@ -497,79 +529,95 @@ function handleScoreChange(event) {
     const match = matches[matchIndex];
     
     // Ensure the scores array is ready for this set index
-    if (!match.scores[setIndex]) match.scores[setIndex] = [];
+    if (!match.scores[setIndex]) match.scores[setIndex] = [undefined, undefined, undefined];
 
-    // Update the correct score position (p1 games is index 0, p2 games is index 1, tiebreak is index 2)
-    const scoreIndex = isTiebreakInput ? 2 : (pKey === 'p1' ? 0 : 1);
+    // Update the correct score position
+    const scorePosition = pKey === 'p1' ? 0 : 1;
     
-    // If games are set to 7-7, clear the tiebreak score if one of the scores is changed to something else.
-    if (!isTiebreakInput) {
-        match.scores[setIndex][scoreIndex] = value;
-        const p1Games = match.scores[setIndex][0];
-        const p2Games = match.scores[setIndex][1];
-        
-        // Validation: If scores are not 7-7, clear the tiebreak score
-        if (!((p1Games === 7 && p2Games === 7) || (p1Games === 6 && p2Games === 6) || (p1Games === 10 && p2Games === 10))) {
-             match.scores[setIndex][2] = undefined; // Clear tiebreak score
-        }
-    } else {
-        match.scores[setIndex][scoreIndex] = value;
+    if (scoreType === 'games') {
+        match.scores[setIndex][scorePosition] = value;
+    } else if (scoreType === 'tiebreak') {
+        // Tiebreak score is always the 3rd element in the set array (index 2)
+        match.scores[setIndex][2] = value;
     }
     
-    // Check if the match is completed
+    // Check for match winner and update the match object
     const matchResult = checkMatchWinner(match);
     match.winner = matchResult.winner;
 
-    // Update the UI and save
-    saveData(true);
-    renderMatches(); // Re-render to show card style and update standings
+    // --- Dynamic UI Update (DO NOT call renderMatches() here) ---
+    // 1. Update the winner status text and card class
+    const cardElement = document.getElementById(`match-card-${match.id}`).querySelector('.match-card');
+    const winnerElement = document.getElementById(`winner-status-${match.id}`);
     
-    // Give feedback
-    if (matchResult.winner) {
-         showStatus(`🏆 Match complete! Winner: ${matchResult.winner}`, "green");
+    if (match.winner) {
+        cardElement.classList.add('ring-4', 'ring-green-300');
+        winnerElement.innerHTML = `🏆 Winner: ${match.winner} (Score: ${getMatchScoreString(match)})`;
     } else {
-         showStatus(`📝 Score updated.`, "indigo");
+        cardElement.classList.remove('ring-4', 'ring-green-300');
+        winnerElement.innerHTML = 'Match in progress / Not started';
     }
+
+    // 2. Update Standings
+    document.getElementById("standings-list").innerHTML = renderStandings(calculateStandings());
+    
+    // 3. Save data to the cloud/local
+    saveData(true);
 }
 
-// Logic to determine the match winner based on set scores
+// Logic to determine the match winner based on set scores (Best of 3 sets)
 function checkMatchWinner(match) {
     let setsWonP1 = 0;
     let setsWonP2 = 0;
     let winner = null;
 
+    // The two parties competing (Player 1 or Team 1, Player 2 or Team 2)
+    const p1Id = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
+    const p2Id = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
+
     match.scores.forEach(set => {
-        const p1Games = set[0] || 0;
-        const p2Games = set[1] || 0;
+        const p1Games = set[0];
+        const p2Games = set[1];
         
-        // A set is completed if one player wins at least 6 games AND leads by 2 games (e.g., 6-4, 7-5, 7-6)
+        // Skip if set is not fully entered
+        if (p1Games === undefined || p2Games === undefined) return; 
+
+        // Standard 6-game set win (must lead by 2)
         if (p1Games >= 6 && p1Games >= p2Games + 2) {
             setsWonP1++;
         } else if (p2Games >= 6 && p2Games >= p1Games + 2) {
             setsWonP2++;
-        } else if (p1Games === 7 && p2Games === 5) {
+        } 
+        
+        // 7-game set win (7-5)
+        else if (p1Games === 7 && p2Games === 5) {
             setsWonP1++;
         } else if (p2Games === 7 && p1Games === 5) {
             setsWonP2++;
-        } else if (p1Games === 7 && p2Games === 6) { // Tiebreak winner (7-6)
+        }
+        
+        // Tiebreak set win (7-6 or 6-7)
+        else if (p1Games === 7 && p2Games === 6) {
             setsWonP1++;
-        } else if (p2Games === 7 && p1Games === 6) { // Tiebreak winner (6-7)
+        } else if (p2Games === 7 && p1Games === 6) {
             setsWonP2++;
-        } else if (p1Games === 7 && p2Games === 7) { // 10-point tiebreak match winner (use 7-8 score for games)
-            // This is the special case for 1 set all (1-1) where a match tiebreak of 10 points is played.
-            const tiebreakScore = set[2];
-            if (tiebreakScore !== undefined && tiebreakScore >= 10) {
+        }
+        
+        // Match Tiebreak (typically 1 set all, then 10-point tiebreak)
+        // We simplify: if a set score is 7-7, it represents the match tiebreak winner
+        else if (p1Games === 7 && p2Games === 7) { 
+            const tiebreakWinnerScore = set[2];
+            if (tiebreakWinnerScore !== undefined && tiebreakWinnerScore >= 10) {
                  setsWonP1++; 
-            } else {
-                setsWonP2++; // Assuming 7-7 implies p2 won the 10-point tiebreak if p1 didn't win
             }
         }
     });
 
+    // Determine overall winner (Best of 3 sets requires 2 sets won)
     if (setsWonP1 === 2) {
-        winner = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
+        winner = p1Id;
     } else if (setsWonP2 === 2) {
-        winner = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
+        winner = p2Id;
     }
 
     return { winner };
@@ -592,20 +640,18 @@ function calculateStandings() {
             gamesWon: 0,
             gamesLost: 0,
             gamesDiff: 0,
-            group: 0 // Will be set in the loop
+            group: 0 
         };
     });
 
     // 2. Aggregate stats from completed matches
     matches.forEach(match => {
         const isCompleted = match.winner !== null;
-        if (!isCompleted) return;
 
-        // Player names (handling singles/doubles, treating team names as single entities for simplicity)
+        // Player names (handling singles/doubles)
         const p1Name = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
         const p2Name = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
 
-        // For doubles, we update stats for each player in the team
         const p1Members = match.type === 'singles' ? [match.p1] : match.p1;
         const p2Members = match.type === 'singles' ? [match.p2] : match.p2;
 
@@ -622,22 +668,29 @@ function calculateStandings() {
         // Update stats for all members of Team 1
         p1Members.forEach(member => {
             if (stats[member]) {
-                stats[member].matchesPlayed++;
-                stats[member].matchesWon += (winnerName === p1Name ? 1 : 0);
+                // Games count towards ranking regardless of match completion
                 stats[member].gamesWon += totalGamesWonP1;
                 stats[member].gamesLost += totalGamesWonP2;
                 stats[member].group = match.group;
+                
+                if (isCompleted) {
+                    stats[member].matchesPlayed++;
+                    stats[member].matchesWon += (winnerName === p1Name ? 1 : 0);
+                }
             }
         });
 
         // Update stats for all members of Team 2
         p2Members.forEach(member => {
             if (stats[member]) {
-                stats[member].matchesPlayed++;
-                stats[member].matchesWon += (winnerName === p2Name ? 1 : 0);
                 stats[member].gamesWon += totalGamesWonP2;
                 stats[member].gamesLost += totalGamesWonP1;
                 stats[member].group = match.group;
+
+                if (isCompleted) {
+                    stats[member].matchesPlayed++;
+                    stats[member].matchesWon += (winnerName === p2Name ? 1 : 0);
+                }
             }
         });
     });
@@ -666,7 +719,7 @@ function calculateStandings() {
 // STANDINGS RENDERING
 // ---------------------------
 function renderStandings(standingsArray) {
-    if (standingsArray.length === 0) {
+    if (standingsArray.length === 0 || standingsArray.every(s => s.group === 0)) {
         return '<p class="text-gray-500">No players registered or no matches have been played yet.</p>';
     }
 
