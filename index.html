@@ -57,7 +57,8 @@
       </div>
     </header>
 
-    <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">       <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
+    <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
 
       <div class="grid md:grid-cols-2 gap-6">
         <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
@@ -73,11 +74,13 @@
             </button>
           </div>
           <p class="text-xs text-gray-600 mt-1">Must be even (minimum 4).</p>
-          <div id="set-max-message" class="text-sm mt-1"></div>         </div>
+          <div id="set-max-message" class="text-sm mt-1"></div>
+        </div>
 
         <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
           <label for="num-grupos-input" class="block text-sm font-medium text-indigo-700">
-            Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)           </label>
+            Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)
+          </label>
           <div class="mt-1 flex space-x-2">
             <input type="number" id="num-grupos-input" min="1" max="6" value="2"
               class="flex-grow p-2 border border-indigo-300 rounded-lg">
@@ -87,7 +90,8 @@
             </button>
           </div>
           <p class="text-xs text-gray-600 mt-1">Total players must be divisible by this number.</p>
-          <div id="set-group-message" class="text-sm mt-1"></div>         </div>
+          <div id="set-group-message" class="text-sm mt-1"></div>
+        </div>
       </div>
 
       <div class="mt-4">
@@ -139,7 +143,9 @@
 
     window.firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
     const loadingOverlay = document.getElementById('loading-overlay');
-    loadingOverlay.style.display = 'flex';
+    
+    // Hide the loading overlay immediately (unless Firebase is active)
+    loadingOverlay.style.display = 'none';
 
     if (Object.keys(window.firebaseConfig).length > 0) {
       window.app = initializeApp(window.firebaseConfig);
@@ -150,15 +156,13 @@
       onAuthStateChanged(window.auth, async (user) => {
         if (!user) await signInAnonymously(window.auth);
         window.userId = window.auth.currentUser.uid;
-        if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
-        loadingOverlay.style.display = 'none';
+        // App logic is now loaded via my-app-logic.js's DOMContentLoaded listener
       });
     } else {
       console.warn("⚠️ No Firebase config — running in local mode.");
       window.db = null;
       window.userId = crypto.randomUUID();
-      if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
-      loadingOverlay.style.display = 'none';
+      // App logic is now loaded via my-app-logic.js's DOMContentLoaded listener
     }
   </script>
 
