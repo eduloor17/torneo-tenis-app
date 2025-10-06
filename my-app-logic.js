@@ -1,45 +1,34 @@
-// my-app-logic.js
 import {
-  collection,
   doc,
   setDoc,
   getDoc,
-  updateDoc,
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// ===== Global Variables =====
 let players = [];
-let tournamentId = null;
+let matches = [];
 let maxPlayers = 10;
 let numGroups = 2;
+let matchType = "singles";
+let tournamentId = null;
 
-// Entry point (called from index.html after Firebase is ready)
 window.loadAndInitializeLogic = function () {
-  console.log("✅ Main logic initialized.");
-  initializeUI();
+  console.log("✅ Logic initialized");
   loadLocalData();
-  setupEventHandlers();
+  setupEvents();
+  updateUI();
 };
 
-// ==============================
-// 🧩 INITIALIZATION & EVENTS
-// ==============================
-
-function initializeUI() {
-  document.getElementById("max-jugadores-actual").textContent = maxPlayers;
-  document.getElementById("max-participantes-display").textContent = maxPlayers;
-}
-
-function setupEventHandlers() {
+// === Event Setup ===
+function setupEvents() {
   document.getElementById("btn-configurar-max").addEventListener("click", () => {
     const newMax = parseInt(document.getElementById("max-jugadores-input").value);
     if (newMax >= 4 && newMax % 2 === 0) {
       maxPlayers = newMax;
-      document.getElementById("max-jugadores-actual").textContent = maxPlayers;
-      document.getElementById("max-participantes-display").textContent = maxPlayers;
+      updateUI();
       saveData();
+      alert(`✅ Max players set to ${maxPlayers}`);
     } else {
-      alert("Maximum number of players must be even and at least 4.");
+      alert("Max players must be even and at least 4.");
     }
   });
 
@@ -48,72 +37,34 @@ function setupEventHandlers() {
     if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
       numGroups = newGroups;
       saveData();
+      alert(`✅ Groups set to ${numGroups}`);
     } else {
-      alert("The number of groups must evenly divide the total number of players.");
+      alert("Groups must divide total players evenly.");
     }
+  });
+
+  document.getElementById("match-type").addEventListener("change", (e) => {
+    matchType = e.target.value;
+    saveData();
   });
 
   document.getElementById("btn-agregar-participante").addEventListener("click", addPlayer);
   document.getElementById("btn-borrar-datos").addEventListener("click", clearLocalData);
-  document.getElementById("load-tournament-form").addEventListener("submit", loadExternalTournament);
+  document.getElementById("btn-generate-matches").addEventListener("click", generateMatches);
 }
 
-// ==============================
-// 👥 PLAYER MANAGEMENT
-// ==============================
-
+// === Player Logic ===
 function addPlayer() {
-  const nameInput = document.getElementById("nombre-input");
-  const name = nameInput.value.trim();
-
-  if (!name) {
-    alert("Please enter a valid player name.");
-    return;
-  }
-  if (players.includes(name)) {
-    alert("This player is already registered.");
-    return;
-  }
-  if (players.length >= maxPlayers) {
-    alert("You have reached the maximum number of players.");
-    return;
-  }
+  const input = document.getElementById("nombre-input");
+  const name = input.value.trim();
+  if (!name) return alert("Please enter a name.");
+  if (players.includes(name)) return alert("This player already exists.");
+  if (players.length >= maxPlayers) return alert("Max players reached.");
 
   players.push(name);
-  nameInput.value = "";
+  input.value = "";
   updatePlayerList();
   saveData();
-}
-
-function updatePlayerList() {
-  const list = document.getElementById("lista-participantes");
-  list.innerHTML = "";
-
-  players.forEach((p, index) => {
-    const li = document.createElement("li");
-    li.textContent = p;
-    li.classList.add("flex", "justify-between", "items-center");
-
-    const removeBtn = document.createElement("button");
-    removeBtn.textContent = "❌";
-    removeBtn.classList.add("text-red-500", "hover:text-red-700", "ml-2");
-    removeBtn.addEventListener("click", () => removePlayer(index));
-
-    li.appendChild(removeBtn);
-    list.appendChild(li);
-  });
-
-  document.getElementById("contador-participantes").textContent = players.length;
-  document.getElementById("contador-participantes-list").textContent = players.length;
-
-  const startBtn = document.getElementById("btn-iniciar");
-  const ready = players.length === maxPlayers;
-
-  startBtn.disabled = !ready;
-  startBtn.classList.toggle("opacity-50", !ready);
-  startBtn.classList.toggle("cursor-not-allowed", !ready);
-  startBtn.classList.toggle("bg-indigo-600", ready);
-  startBtn.classList.toggle("hover:bg-indigo-700", ready);
 }
 
 function removePlayer(index) {
@@ -122,106 +73,103 @@ function removePlayer(index) {
   saveData();
 }
 
-// ==============================
-// 💾 LOCAL STORAGE & FIREBASE SYNC
-// ==============================
+function updatePlayerList() {
+  const list = document.getElementById("lista-participantes");
+  list.innerHTML = "";
+  players.forEach((p, i) => {
+    const li = document.createElement("li");
+    li.textContent = p;
+    const btn = document.createElement("button");
+    btn.textContent = "❌";
+    btn.classList.add("ml-2", "text-red-500");
+    btn.onclick = () => removePlayer(i);
+    li.appendChild(btn);
+    list.appendChild(li);
+  });
+  document.getElementById("contador-participantes").textContent = players.length;
+  document.getElementById("contador-participantes-list").textContent = players.length;
+}
 
-function saveData() {
-  const data = {
-    players,
-    maxPlayers,
-    numGroups,
-    tournamentId: tournamentId || generateTournamentId(),
-    userId: window.userId || "anonymous",
-    timestamp: new Date().toISOString(),
-  };
-  localStorage.setItem("tournamentData", JSON.stringify(data));
-  tournamentId = data.tournamentId;
+// === Match Generator ===
+function generateMatches() {
+  if (players.length < 2) return alert("Need at least 2 players.");
 
-  // Save to Firestore if available
-  if (window.db) {
-    const ref = doc(window.db, "tournaments", data.tournamentId);
-    setDoc(ref, data)
-      .then(() => console.log("✅ Tournament saved in Firestore:", data.tournamentId))
-      .catch((err) => console.error("Error saving in Firestore:", err));
+  const shuffled = [...players].sort(() => Math.random() - 0.5);
+  matches = [];
+
+  if (matchType === "singles") {
+    for (let i = 0; i < shuffled.length; i += 2) {
+      if (shuffled[i + 1]) matches.push([shuffled[i], shuffled[i + 1]]);
+    }
+  } else {
+    // DOUBLES: random partner assignment
+    const pairs = [];
+    for (let i = 0; i < shuffled.length; i += 2) {
+      if (shuffled[i + 1]) pairs.push([shuffled[i], shuffled[i + 1]]);
+    }
+    const shuffledPairs = [...pairs].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < shuffledPairs.length; i += 2) {
+      if (shuffledPairs[i + 1]) matches.push([shuffledPairs[i], shuffledPairs[i + 1]]);
+    }
   }
 
-  document.getElementById("tournament-id-display").innerHTML = `
-    <p class="text-sm text-gray-600">🆔 Tournament ID: <span class="font-bold">${tournamentId}</span></p>
-    <p class="text-xs text-gray-500">User: ${window.userId}</p>
-  `;
+  displayMatches();
+  saveData();
+}
+
+function displayMatches() {
+  const container = document.getElementById("matches-container");
+  container.innerHTML = "<h3 class='font-semibold text-lg mb-2'>Generated Matches</h3>";
+  matches.forEach((match, idx) => {
+    const div = document.createElement("div");
+    div.classList.add("p-2", "border", "rounded", "mb-1", "bg-gray-100");
+    if (matchType === "singles") {
+      div.textContent = `Match ${idx + 1}: ${match[0]} 🆚 ${match[1]}`;
+    } else {
+      div.textContent = `Match ${idx + 1}: ${match[0][0]} & ${match[0][1]} 🆚 ${match[1][0]} & ${match[1][1]}`;
+    }
+    container.appendChild(div);
+  });
+}
+
+// === Save & Load ===
+function saveData() {
+  const data = { players, matches, maxPlayers, numGroups, matchType, userId: window.userId };
+  localStorage.setItem("tournamentData", JSON.stringify(data));
+
+  if (window.db) {
+    const id = tournamentId || `T-${Math.random().toString(36).substring(2, 8)}`;
+    tournamentId = id;
+    const ref = doc(window.db, "tournaments", id);
+    setDoc(ref, data).then(() => console.log("Saved tournament:", id));
+  }
 }
 
 function loadLocalData() {
   const data = JSON.parse(localStorage.getItem("tournamentData"));
   if (data) {
     players = data.players || [];
+    matches = data.matches || [];
     maxPlayers = data.maxPlayers || 10;
     numGroups = data.numGroups || 2;
-    tournamentId = data.tournamentId;
+    matchType = data.matchType || "singles";
     updatePlayerList();
-    initializeUI();
+    displayMatches();
   }
 }
 
 function clearLocalData() {
-  if (confirm("Are you sure you want to reset the tournament? This will delete all local data.")) {
+  if (confirm("Are you sure you want to clear all data?")) {
     localStorage.removeItem("tournamentData");
     players = [];
-    tournamentId = null;
+    matches = [];
     updatePlayerList();
-    initializeUI();
-    alert("Local data cleared. You can start a new tournament.");
+    document.getElementById("matches-container").innerHTML = "";
   }
 }
 
-// ==============================
-// 🌐 LOAD EXISTING TOURNAMENT
-// ==============================
-
-async function loadExternalTournament(e) {
-  e.preventDefault();
-  const input = document.getElementById("external-id-input");
-  const message = document.getElementById("load-message");
-  const id = input.value.trim();
-
-  if (!id) return (message.textContent = "Please enter a valid tournament ID.");
-
-  if (!window.db) {
-    return (message.textContent = "Firebase is not available. Cannot load external tournaments.");
-  }
-
-  try {
-    const ref = doc(window.db, "tournaments", id);
-    const snapshot = await getDoc(ref);
-    if (snapshot.exists()) {
-      const data = snapshot.data();
-      players = data.players || [];
-      maxPlayers = data.maxPlayers || 10;
-      numGroups = data.numGroups || 2;
-      tournamentId = data.tournamentId;
-
-      updatePlayerList();
-      initializeUI();
-      saveData();
-
-      message.textContent = "✅ Tournament loaded successfully.";
-      message.classList.remove("text-red-500");
-      message.classList.add("text-green-600");
-    } else {
-      message.textContent = "❌ No tournament found with that ID.";
-      message.classList.add("text-red-500");
-    }
-  } catch (err) {
-    console.error(err);
-    message.textContent = "Error loading the tournament.";
-  }
-}
-
-// ==============================
-// 🧩 UTILITIES
-// ==============================
-
-function generateTournamentId() {
-  return "T-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+function updateUI() {
+  document.getElementById("max-jugadores-actual").textContent = maxPlayers;
+  document.getElementById("max-participantes-display").textContent = maxPlayers;
+  document.getElementById("match-type").value = matchType;
 }
