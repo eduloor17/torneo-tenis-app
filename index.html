@@ -1,250 +1,242 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Torneos de Tenis</title>
-    <!-- Carga de Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Configuración de fuente -->
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9;
-        }
-        .match-card {
-            margin-bottom: 1rem;
-        }
-        .match-card.completed {
-            border: 2px solid #10b981; /* green-500 */
-            opacity: 0.9;
-        }
-        /* Estilos específicos para Playoffs */
-        .playoff-bracket {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            align-items: stretch;
-        }
-        .playoff-column {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        @media (max-width: 768px) {
-            .playoff-bracket {
-                grid-template-columns: 1fr; /* Columna única en móvil */
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tennis Tournament Manager</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f4f7f9;
+    }
+    .match-card {
+      margin-bottom: 1rem;
+    }
+    .match-card.completed {
+      border: 2px solid #10b981;
+      opacity: 0.9;
+    }
+    .playoff-bracket {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+    .playoff-column {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    @media (max-width: 768px) {
+      .playoff-bracket {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
+  
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center">
+    <div class="text-center">
+      <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="mt-3 text-lg font-semibold text-gray-700">Loading Tournament...</p>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
     
-    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center">
-        <div class="text-center">
-            <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="mt-3 text-lg font-semibold text-gray-700">Cargando Torneo...</p>
+    <!-- Header -->
+    <header class="bg-white p-6 rounded-2xl shadow-xl mb-8">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+        <h1 class="text-3xl font-extrabold text-indigo-800 flex items-center">
+          🎾 Tennis Tournament Manager
+        </h1>
+        <div class="mt-3 md:mt-0 flex flex-col items-end">
+          <div id="tournament-id-display" class="text-right">
+            <!-- Tournament ID and User ID will appear here -->
+          </div>
+          <button id="btn-borrar-datos" class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
+            Reset Tournament (Clear Local)
+          </button>
         </div>
-    </div>
+      </div>
 
-    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        <!-- Encabezado y Barra de Herramientas -->
-        <header class="bg-white p-6 rounded-2xl shadow-xl mb-8">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-                <h1 class="text-3xl font-extrabold text-indigo-800 flex items-center">
-                    🎾 Gestor de Torneos de Tenis
-                </h1>
-                <div class="mt-3 md:mt-0 flex flex-col items-end">
-                    <div id="tournament-id-display" class="text-right">
-                        <!-- ID del Torneo y de Usuario se insertan aquí -->
-                    </div>
-                    <button id="btn-borrar-datos" class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
-                        Reiniciar Torneo (Borrar Local)
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Carga de Torneo Externo -->
-            <div class="mt-4 pt-4 border-t border-gray-100">
-                <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                    <input type="text" id="external-id-input" placeholder="Ingresa un ID de torneo para cargar" class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                    <button type="submit" class="px-4 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600 transition duration-150">Cargar Torneo</button>
-                </form>
-                <p id="load-message" class="text-sm text-gray-500 mt-2"></p>
-            </div>
-        </header>
+      <!-- Load Existing Tournament -->
+      <div class="mt-4 pt-4 border-t border-gray-100">
+        <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+          <input type="text" id="external-id-input" placeholder="Enter a tournament ID to load" class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+          <button type="submit" class="px-4 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600 transition duration-150">
+            Load Tournament
+          </button>
+        </form>
+        <p id="load-message" class="text-sm text-gray-500 mt-2"></p>
+      </div>
+    </header>
 
-        <!-- Contenido Principal: Configuración y Registro -->
-        <section id="configuracion" class="bg-white p-6 rounded-2xl shadow-xl mb-8">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Configuración del Torneo</h2>
+    <!-- Tournament Setup -->
+    <section id="configuracion" class="bg-white p-6 rounded-2xl shadow-xl mb-8">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
 
-            <div class="flex flex-col space-y-4 md:flex-row md:space-x-6 md:space-y-0">
-                <!-- Configuración de Jugadores -->
-                <div class="flex-1 bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-                    <label for="max-jugadores-input" class="block text-sm font-medium text-indigo-700">Máximo de Jugadores (Actual: <span id="max-jugadores-actual" class="font-extrabold">10</span>)</label>
-                    <div class="mt-1 flex space-x-2">
-                        <input type="number" id="max-jugadores-input" min="4" step="2" value="10" class="flex-grow p-2 border border-indigo-300 rounded-lg">
-                        <button id="btn-configurar-max" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">Ajustar Máx.</button>
-                    </div>
-                    <p class="text-xs text-gray-600 mt-1">Debe ser un número par (mínimo 4).</p>
-                </div>
-                
-                <!-- Configuración de Grupos -->
-                <div class="flex-1 bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-                    <label for="num-grupos-input" class="block text-sm font-medium text-indigo-700">Número de Grupos</label>
-                    <div class="mt-1 flex space-x-2">
-                        <input type="number" id="num-grupos-input" min="1" max="6" value="2" class="flex-grow p-2 border border-indigo-300 rounded-lg">
-                        <button id="btn-configurar-grupos" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">Ajustar Grupos</button>
-                    </div>
-                    <p class="text-xs text-gray-600 mt-1">El total de jugadores debe ser divisible por este número.</p>
-                </div>
-            </div>
-        </section>
-
-        <section id="registro" class="bg-white p-6 rounded-2xl shadow-xl mb-8">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Registro de Participantes</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Formulario de Registro -->
-                <div class="md:col-span-2">
-                    <label for="nombre-input" class="block text-sm font-medium text-gray-700">Nombre del Jugador</label>
-                    <div class="mt-1 flex space-x-2">
-                        <input type="text" id="nombre-input" placeholder="Ej. Rafael Nadal" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                        <button id="btn-agregar-participante" class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">Añadir</button>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">
-                        <span id="contador-participantes" class="font-bold text-indigo-600">0</span> de <span id="max-participantes-display" class="font-bold text-indigo-600">10</span> participantes registrados.
-                    </p>
-                </div>
-
-                <!-- Lista de Participantes -->
-                <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Lista (<span id="contador-participantes-list">0</span>)</h3>
-                    <ul id="lista-participantes" class="list-disc list-inside space-y-1 text-sm text-gray-700">
-                        <!-- Nombres de los participantes se insertan aquí -->
-                    </ul>
-                </div>
-            </div>
-
-            <div class="mt-6 border-t pt-4">
-                <button id="btn-iniciar" class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-indigo-600 opacity-50 cursor-not-allowed" disabled>
-                    Iniciar Torneo (Necesita 10 más)
-                </button>
-            </div>
-        </section>
-
-        <!-- Contenido de Torneo: Fases y Ranking -->
-        <section id="grupos-fixture" class="bg-white p-6 rounded-2xl shadow-xl mb-8 hidden">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Fase de Grupos y Ranking</h2>
-            
-            <div id="grupos-container" class="flex flex-wrap -mx-2 mb-6">
-                <!-- Contenedores de Ranking de Grupos se insertan aquí -->
-            </div>
-
-            <h3 class="text-xl font-bold text-gray-700 mb-4">Registro de Partidos</h3>
-            <div id="partidos-registro-grupos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Tarjetas de Partidos de Grupos se insertan aquí -->
-            </div>
-            
-            <div class="mt-6 border-t pt-4 text-center">
-                 <button id="btn-generate-analysis" class="px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition duration-150 hidden">
-                    📊 Generar Análisis de la IA (Gemini)
-                </button>
-                <div id="analysis-results" class="mt-4">
-                    <!-- Resultados del análisis se insertan aquí -->
-                </div>
-            </div>
-        </section>
+      <div class="flex flex-col space-y-4 md:flex-row md:space-x-6 md:space-y-0">
         
-        <section id="ranking-finales" class="bg-white p-6 rounded-2xl shadow-xl mb-8 hidden">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">4. Etapa Final y Resultados</h2>
-            
-            <!-- Playoffs -->
-            <div id="playoffs-container" class="mb-8">
-                 <!-- Cuadro de Semifinales, 3er Puesto, Final se inserta aquí -->
-            </div>
-            
-            <!-- Ranking General -->
-            <h3 class="text-xl font-bold text-gray-700 mb-4 border-t pt-4">Ranking General Final</h3>
-            <div id="ranking-final">
-                 <!-- Tabla de Ranking General se inserta aquí -->
-            </div>
-        </section>
+        <!-- Max Players -->
+        <div class="flex-1 bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+          <label for="max-jugadores-input" class="block text-sm font-medium text-indigo-700">
+            Maximum Players (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
+          </label>
+          <div class="mt-1 flex space-x-2">
+            <input type="number" id="max-jugadores-input" min="4" step="2" value="10" class="flex-grow p-2 border border-indigo-300 rounded-lg">
+            <button id="btn-configurar-max" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+              Set Max
+            </button>
+          </div>
+          <p class="text-xs text-gray-600 mt-1">Must be an even number (minimum 4).</p>
+        </div>
 
-    </div>
+        <!-- Number of Groups -->
+        <div class="flex-1 bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+          <label for="num-grupos-input" class="block text-sm font-medium text-indigo-700">Number of Groups</label>
+          <div class="mt-1 flex space-x-2">
+            <input type="number" id="num-grupos-input" min="1" max="6" value="2" class="flex-grow p-2 border border-indigo-300 rounded-lg">
+            <button id="btn-configurar-grupos" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+              Set Groups
+            </button>
+          </div>
+          <p class="text-xs text-gray-600 mt-1">Total players must be divisible by this number.</p>
+        </div>
+      </div>
+    </section>
 
-    <!-- Bloque de inicialización de Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- Player Registration -->
+    <section id="registro" class="bg-white p-6 rounded-2xl shadow-xl mb-8">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Player Registration</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Add Player -->
+        <div class="md:col-span-2">
+          <label for="nombre-input" class="block text-sm font-medium text-gray-700">Player Name</label>
+          <div class="mt-1 flex space-x-2">
+            <input type="text" id="nombre-input" placeholder="e.g. Rafael Nadal" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+            <button id="btn-agregar-participante" class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">
+              Add Player
+            </button>
+          </div>
+          <p class="text-sm text-gray-500 mt-2">
+            <span id="contador-participantes" class="font-bold text-indigo-600">0</span> of 
+            <span id="max-participantes-display" class="font-bold text-indigo-600">10</span> players registered.
+          </p>
+        </div>
 
-        // Globales requeridas
-        window.firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        <!-- Player List -->
+        <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">Player List (<span id="contador-participantes-list">0</span>)</h3>
+          <ul id="lista-participantes" class="list-disc list-inside space-y-1 text-sm text-gray-700"></ul>
+        </div>
+      </div>
 
-        // Mostrar el overlay de carga
-        const loadingOverlay = document.getElementById('loading-overlay');
-        loadingOverlay.style.display = 'flex';
+      <div class="mt-6 border-t pt-4">
+        <button id="btn-iniciar" class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-indigo-600 opacity-50 cursor-not-allowed" disabled>
+          Start Tournament (Need 10 more)
+        </button>
+      </div>
+    </section>
 
-        if (Object.keys(window.firebaseConfig).length > 0) {
-            window.app = initializeApp(window.firebaseConfig);
-            window.db = getFirestore(window.app);
-            window.auth = getAuth(window.app);
-            setLogLevel('debug'); // Para ver logs de Firebase
+    <!-- Group Stage -->
+    <section id="grupos-fixture" class="bg-white p-6 rounded-2xl shadow-xl mb-8 hidden">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Group Stage & Ranking</h2>
+      
+      <div id="grupos-container" class="flex flex-wrap -mx-2 mb-6"></div>
 
-            // Usamos onAuthStateChanged para garantizar que la autenticación esté lista antes de cargar la lógica
-            onAuthStateChanged(window.auth, async (user) => {
-                if (!user) {
-                    // Intentar iniciar sesión con el token personalizado o de forma anónima
-                    if (initialAuthToken) {
-                        try {
-                            await signInWithCustomToken(window.auth, initialAuthToken);
-                        } catch (error) {
-                            console.error("Error al iniciar sesión con token personalizado. Cayendo a anónimo:", error);
-                            await signInAnonymously(window.auth);
-                        }
-                    } else {
-                        await signInAnonymously(window.auth);
-                    }
-                }
-                
-                // Una vez que el usuario está autenticado (o anónimo), obtenemos el UID
-                window.userId = window.auth.currentUser .uid;
-                
-                // Llamamos a la lógica principal que está en my-app-logic.js
-                if (typeof window.loadAndInitializeLogic === 'function') {
-                    window.loadAndInitializeLogic();
-                } else {
-                    console.error("Función 'loadAndInitializeLogic' no encontrada. Asegúrate de que my-app-logic.js se cargue correctamente.");
-                }
-                
-                // Ocultar el overlay de carga
-                loadingOverlay.style.display = 'none';
-            });
+      <h3 class="text-xl font-bold text-gray-700 mb-4">Match Registration</h3>
+      <div id="partidos-registro-grupos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      
+      <div class="mt-6 border-t pt-4 text-center">
+        <button id="btn-generate-analysis" class="px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition duration-150 hidden">
+          📊 Generate AI Analysis (Gemini)
+        </button>
+        <div id="analysis-results" class="mt-4"></div>
+      </div>
+    </section>
 
-        } else {
-            // Fallback si no hay configuración de Firebase
-            console.warn("⚠️ Advertencia: No hay configuración de Firebase. Ejecutando solo con Local Storage.");
-            // Establecer un ID de usuario dummy para que la lógica pueda continuar
-            window.userId = crypto.randomUUID(); 
-            window.db = null; // Asegurar que 'db' es null para el chequeo de guardado
-            
-            if (typeof window.loadAndInitializeLogic === 'function') {
-                window.loadAndInitializeLogic();
+    <!-- Finals -->
+    <section id="ranking-finales" class="bg-white p-6 rounded-2xl shadow-xl mb-8 hidden">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">4. Final Stage & Results</h2>
+      <div id="playoffs-container" class="mb-8"></div>
+
+      <h3 class="text-xl font-bold text-gray-700 mb-4 border-t pt-4">Final Overall Ranking</h3>
+      <div id="ranking-final"></div>
+    </section>
+
+  </div>
+
+  <!-- Firebase Initialization -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    window.firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    const loadingOverlay = document.getElementById('loading-overlay');
+    loadingOverlay.style.display = 'flex';
+
+    if (Object.keys(window.firebaseConfig).length > 0) {
+      window.app = initializeApp(window.firebaseConfig);
+      window.db = getFirestore(window.app);
+      window.auth = getAuth(window.app);
+      setLogLevel('debug');
+
+      onAuthStateChanged(window.auth, async (user) => {
+        if (!user) {
+          if (initialAuthToken) {
+            try {
+              await signInWithCustomToken(window.auth, initialAuthToken);
+            } catch (error) {
+              console.error("Error signing in with custom token, falling back to anonymous:", error);
+              await signInAnonymously(window.auth);
             }
-            
-            loadingOverlay.style.display = 'none';
+          } else {
+            await signInAnonymously(window.auth);
+          }
         }
-    </script>
-    
-    <!-- Carga del archivo de lógica (AHORA COMO MÓDULO) -->
-    <script type="module" src="./my-app-logic.js"></script>
+
+        window.userId = window.auth.currentUser.uid;
+
+        if (typeof window.loadAndInitializeLogic === 'function') {
+          window.loadAndInitializeLogic();
+        } else {
+          console.error("Function 'loadAndInitializeLogic' not found. Make sure my-app-logic.js loads correctly.");
+        }
+
+        loadingOverlay.style.display = 'none';
+      });
+    } else {
+      console.warn("⚠️ Warning: No Firebase configuration found. Running in Local Storage mode only.");
+      window.userId = crypto.randomUUID();
+      window.db = null;
+
+      if (typeof window.loadAndInitializeLogic === 'function') {
+        window.loadAndInitializeLogic();
+      }
+
+      loadingOverlay.style.display = 'none';
+    }
+  </script>
+
+  <!-- App Logic -->
+  <script type="module" src="./my-app-logic.js"></script>
 
 </body>
 </html>
