@@ -1,5 +1,5 @@
 // my-app-logic.js
-// Tennis Tournament Manager — Logic Layer (Pro Set to 8 Games)
+// Tennis Tournament Manager — Logic Layer (Pro Set to 8 Games con Bloqueo de Marcador)
 
 // Global state
 let players = [];
@@ -407,9 +407,15 @@ function renderMatches() {
     container.innerHTML = html;
     
     // Attach Event Listeners (only once after the initial render)
+    // We attach the change listener to a wrapper function to handle the blocking logic
     document.querySelectorAll('.score-input').forEach(input => {
         // Use 'input' event for real-time saving and update
         input.addEventListener('input', handleScoreChange);
+    });
+    
+    // Attach event listeners for the new "Block Score" button
+    document.querySelectorAll('.btn-block-score').forEach(button => {
+        button.addEventListener('click', toggleScoreBlock);
     });
 }
 
@@ -423,7 +429,7 @@ function renderMatchCard(match) {
     
     let cardHtml = `
         <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
-            <p class="text-lg font-bold text-gray-900 mb-2">Match: ${p1Name} vs ${p2Name}</p>
+            <p class="text-lg font-bold text-gray-900 mb-2">Match ${match.group}: ${p1Name} vs ${p2Name}</p>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead>
@@ -438,9 +444,15 @@ function renderMatchCard(match) {
                     </tbody>
                 </table>
             </div>
-            <p class="mt-3 text-sm font-semibold text-green-700" id="winner-status-${match.id}">
-                ${isCompleted ? `🏆 Winner: ${match.winner} (Score: ${getMatchScoreString(match)})` : 'Match in progress / Not started'}
-            </p>
+            
+            <div class="mt-3 flex justify-between items-center">
+                <p class="text-sm font-semibold text-gray-900">
+                    ${p1Name} vs ${p2Name} <span class="text-indigo-600 font-bold">${getMatchScoreString(match)}</span>
+                </p>
+                 <p class="text-sm font-semibold ${isCompleted ? 'text-green-700' : 'text-gray-500'}" id="winner-status-${match.id}">
+                    ${isCompleted ? `🏆 **Winner:** ${match.winner}` : 'Status: In Progress'}
+                </p>
+                </div>
         </div>
     `;
     return cardHtml;
@@ -452,6 +464,9 @@ function renderScoreRow(match, pKey, name) {
     // Match.scores is now just a single array: [p1_games, p2_games]
     const games = isP1 ? match.scores[0] : match.scores[1]; 
     
+    // Set input status based on match winner
+    const isDisabled = match.winner !== null;
+
     // Max games is typically 9 or 10 for a pro set finish (e.g. 9-8)
     const maxGameInput = 10; 
 
@@ -460,8 +475,9 @@ function renderScoreRow(match, pKey, name) {
         <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
             <div class="flex flex-col items-center">
                 <input type="number" min="0" max="${maxGameInput}" value="${games !== undefined ? games : ''}" 
-                       data-match-id="${match.id}" data-player="${pKey}" data-score-type="games"
-                       class="score-input w-16 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500">
+                       data-match-id="${match.id}" data-player="${pKey}" 
+                       class="score-input w-16 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
+                       ${isDisabled ? 'disabled' : ''}>
             </div>
         </td>
     </tr>`;
@@ -473,7 +489,7 @@ function getMatchScoreString(match) {
     const p1Games = match.scores[0];
     const p2Games = match.scores[1];
     
-    if (p1Games === undefined || p2Games === undefined) return ''; 
+    if (p1Games === undefined || p2Games === undefined) return '0-0'; 
 
     return `${p1Games}-${p2Games}`;
 }
@@ -494,6 +510,13 @@ function handleScoreChange(event) {
     if (matchIndex === -1) return;
     const match = matches[matchIndex];
     
+    // Block change if winner is already set
+    if (match.winner !== null) {
+        input.value = (pKey === 'p1' ? match.scores[0] : match.scores[1]) || '';
+        showStatus("⚠️ Cannot change score for a completed match. Refresh to override.", "orange");
+        return;
+    }
+
     // Update the correct score position
     const scorePosition = pKey === 'p1' ? 0 : 1;
     
@@ -504,17 +527,15 @@ function handleScoreChange(event) {
     match.winner = matchResult.winner;
 
     // --- Dynamic UI Update ---
-    const cardElement = document.getElementById(`match-card-${match.id}`).querySelector('.match-card');
-    const winnerElement = document.getElementById(`winner-status-${match.id}`);
-    
-    if (match.winner) {
-        cardElement.classList.add('ring-4', 'ring-green-300');
-        winnerElement.innerHTML = `🏆 Winner: ${match.winner} (Score: ${getMatchScoreString(match)})`;
-         showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
-    } else {
-        cardElement.classList.remove('ring-4', 'ring-green-300');
-        winnerElement.innerHTML = 'Match in progress / Not started';
-        showStatus(`📝 Score updated.`, "indigo");
+    // Instead of re-rendering the whole thing, let's update the specific card.
+    // This is the cleanest way to enforce the disabled state and update all text fields.
+    const cardContainer = document.getElementById(`match-card-${match.id}`);
+    if (cardContainer) {
+        cardContainer.innerHTML = renderMatchCard(match);
+        // Re-attach event listeners to the newly rendered inputs in this card
+        cardContainer.querySelectorAll('.score-input').forEach(newInput => {
+            newInput.addEventListener('input', handleScoreChange);
+        });
     }
 
     // Update Standings
