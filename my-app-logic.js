@@ -4,224 +4,224 @@ import {
   doc,
   setDoc,
   getDoc,
-  getDocs,
-  addDoc,
   updateDoc,
-  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Variables globales
-let jugadores = [];
-let torneoId = null;
-let maxJugadores = 10;
-let numGrupos = 2;
+// ===== Global Variables =====
+let players = [];
+let tournamentId = null;
+let maxPlayers = 10;
+let numGroups = 2;
 
-// 🔹 Inicialización principal
+// Entry point (called from index.html after Firebase is ready)
 window.loadAndInitializeLogic = function () {
-  console.log("✅ Lógica principal cargada correctamente.");
-  inicializarUI();
-  cargarDatosLocales();
-  configurarEventos();
+  console.log("✅ Main logic initialized.");
+  initializeUI();
+  loadLocalData();
+  setupEventHandlers();
 };
 
 // ==============================
-// 🔧 CONFIGURACIÓN Y EVENTOS
+// 🧩 INITIALIZATION & EVENTS
 // ==============================
 
-function inicializarUI() {
-  document.getElementById("max-jugadores-actual").textContent = maxJugadores;
-  document.getElementById("max-participantes-display").textContent = maxJugadores;
+function initializeUI() {
+  document.getElementById("max-jugadores-actual").textContent = maxPlayers;
+  document.getElementById("max-participantes-display").textContent = maxPlayers;
 }
 
-function configurarEventos() {
+function setupEventHandlers() {
   document.getElementById("btn-configurar-max").addEventListener("click", () => {
-    const nuevoMax = parseInt(document.getElementById("max-jugadores-input").value);
-    if (nuevoMax >= 4 && nuevoMax % 2 === 0) {
-      maxJugadores = nuevoMax;
-      document.getElementById("max-jugadores-actual").textContent = maxJugadores;
-      document.getElementById("max-participantes-display").textContent = maxJugadores;
-      guardarLocal();
+    const newMax = parseInt(document.getElementById("max-jugadores-input").value);
+    if (newMax >= 4 && newMax % 2 === 0) {
+      maxPlayers = newMax;
+      document.getElementById("max-jugadores-actual").textContent = maxPlayers;
+      document.getElementById("max-participantes-display").textContent = maxPlayers;
+      saveData();
     } else {
-      alert("El número máximo de jugadores debe ser par y al menos 4.");
+      alert("Maximum number of players must be even and at least 4.");
     }
   });
 
   document.getElementById("btn-configurar-grupos").addEventListener("click", () => {
-    const nuevoNum = parseInt(document.getElementById("num-grupos-input").value);
-    if (nuevoNum >= 1 && nuevoNum <= 6 && maxJugadores % nuevoNum === 0) {
-      numGrupos = nuevoNum;
-      guardarLocal();
+    const newGroups = parseInt(document.getElementById("num-grupos-input").value);
+    if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
+      numGroups = newGroups;
+      saveData();
     } else {
-      alert("El número de grupos debe dividir exactamente el total de jugadores.");
+      alert("The number of groups must evenly divide the total number of players.");
     }
   });
 
-  document.getElementById("btn-agregar-participante").addEventListener("click", agregarJugador);
-  document.getElementById("btn-borrar-datos").addEventListener("click", borrarDatosLocales);
-  document.getElementById("load-tournament-form").addEventListener("submit", cargarTorneoExterno);
+  document.getElementById("btn-agregar-participante").addEventListener("click", addPlayer);
+  document.getElementById("btn-borrar-datos").addEventListener("click", clearLocalData);
+  document.getElementById("load-tournament-form").addEventListener("submit", loadExternalTournament);
 }
 
 // ==============================
-// 👥 GESTIÓN DE JUGADORES
+// 👥 PLAYER MANAGEMENT
 // ==============================
 
-function agregarJugador() {
-  const nombreInput = document.getElementById("nombre-input");
-  const nombre = nombreInput.value.trim();
+function addPlayer() {
+  const nameInput = document.getElementById("nombre-input");
+  const name = nameInput.value.trim();
 
-  if (!nombre) {
-    alert("Por favor ingresa un nombre válido.");
+  if (!name) {
+    alert("Please enter a valid player name.");
     return;
   }
-  if (jugadores.includes(nombre)) {
-    alert("Este jugador ya está registrado.");
+  if (players.includes(name)) {
+    alert("This player is already registered.");
     return;
   }
-  if (jugadores.length >= maxJugadores) {
-    alert("Ya has alcanzado el número máximo de jugadores.");
+  if (players.length >= maxPlayers) {
+    alert("You have reached the maximum number of players.");
     return;
   }
 
-  jugadores.push(nombre);
-  nombreInput.value = "";
-  actualizarListaJugadores();
-  guardarLocal();
+  players.push(name);
+  nameInput.value = "";
+  updatePlayerList();
+  saveData();
 }
 
-function actualizarListaJugadores() {
-  const lista = document.getElementById("lista-participantes");
-  lista.innerHTML = "";
-  jugadores.forEach((j, idx) => {
+function updatePlayerList() {
+  const list = document.getElementById("lista-participantes");
+  list.innerHTML = "";
+
+  players.forEach((p, index) => {
     const li = document.createElement("li");
-    li.textContent = j;
+    li.textContent = p;
     li.classList.add("flex", "justify-between", "items-center");
 
-    const btnEliminar = document.createElement("button");
-    btnEliminar.textContent = "❌";
-    btnEliminar.classList.add("text-red-500", "hover:text-red-700", "ml-2");
-    btnEliminar.addEventListener("click", () => eliminarJugador(idx));
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "❌";
+    removeBtn.classList.add("text-red-500", "hover:text-red-700", "ml-2");
+    removeBtn.addEventListener("click", () => removePlayer(index));
 
-    li.appendChild(btnEliminar);
-    lista.appendChild(li);
+    li.appendChild(removeBtn);
+    list.appendChild(li);
   });
 
-  document.getElementById("contador-participantes").textContent = jugadores.length;
-  document.getElementById("contador-participantes-list").textContent = jugadores.length;
+  document.getElementById("contador-participantes").textContent = players.length;
+  document.getElementById("contador-participantes-list").textContent = players.length;
 
-  const btnIniciar = document.getElementById("btn-iniciar");
-  btnIniciar.disabled = jugadores.length !== maxJugadores;
-  btnIniciar.classList.toggle("opacity-50", jugadores.length !== maxJugadores);
-  btnIniciar.classList.toggle("cursor-not-allowed", jugadores.length !== maxJugadores);
-  btnIniciar.classList.toggle("bg-indigo-600", jugadores.length === maxJugadores);
-  btnIniciar.classList.toggle("hover:bg-indigo-700", jugadores.length === maxJugadores);
+  const startBtn = document.getElementById("btn-iniciar");
+  const ready = players.length === maxPlayers;
+
+  startBtn.disabled = !ready;
+  startBtn.classList.toggle("opacity-50", !ready);
+  startBtn.classList.toggle("cursor-not-allowed", !ready);
+  startBtn.classList.toggle("bg-indigo-600", ready);
+  startBtn.classList.toggle("hover:bg-indigo-700", ready);
 }
 
-function eliminarJugador(index) {
-  jugadores.splice(index, 1);
-  actualizarListaJugadores();
-  guardarLocal();
+function removePlayer(index) {
+  players.splice(index, 1);
+  updatePlayerList();
+  saveData();
 }
 
 // ==============================
-// 💾 ALMACENAMIENTO LOCAL Y FIREBASE
+// 💾 LOCAL STORAGE & FIREBASE SYNC
 // ==============================
 
-function guardarLocal() {
+function saveData() {
   const data = {
-    jugadores,
-    maxJugadores,
-    numGrupos,
-    torneoId: torneoId || generarIdTorneo(),
-    userId: window.userId || "anon",
+    players,
+    maxPlayers,
+    numGroups,
+    tournamentId: tournamentId || generateTournamentId(),
+    userId: window.userId || "anonymous",
     timestamp: new Date().toISOString(),
   };
-  localStorage.setItem("torneoData", JSON.stringify(data));
-  torneoId = data.torneoId;
+  localStorage.setItem("tournamentData", JSON.stringify(data));
+  tournamentId = data.tournamentId;
 
-  // Si hay Firestore disponible, también guardamos ahí
+  // Save to Firestore if available
   if (window.db) {
-    const ref = doc(window.db, "torneos", data.torneoId);
+    const ref = doc(window.db, "tournaments", data.tournamentId);
     setDoc(ref, data)
-      .then(() => console.log("✅ Torneo guardado en Firestore:", data.torneoId))
-      .catch((err) => console.error("Error al guardar en Firestore:", err));
+      .then(() => console.log("✅ Tournament saved in Firestore:", data.tournamentId))
+      .catch((err) => console.error("Error saving in Firestore:", err));
   }
 
   document.getElementById("tournament-id-display").innerHTML = `
-    <p class="text-sm text-gray-600">🆔 ID del Torneo: <span class="font-bold">${torneoId}</span></p>
-    <p class="text-xs text-gray-500">Usuario: ${window.userId}</p>
+    <p class="text-sm text-gray-600">🆔 Tournament ID: <span class="font-bold">${tournamentId}</span></p>
+    <p class="text-xs text-gray-500">User: ${window.userId}</p>
   `;
 }
 
-function cargarDatosLocales() {
-  const data = JSON.parse(localStorage.getItem("torneoData"));
+function loadLocalData() {
+  const data = JSON.parse(localStorage.getItem("tournamentData"));
   if (data) {
-    jugadores = data.jugadores || [];
-    maxJugadores = data.maxJugadores || 10;
-    numGrupos = data.numGrupos || 2;
-    torneoId = data.torneoId;
-    actualizarListaJugadores();
-    inicializarUI();
+    players = data.players || [];
+    maxPlayers = data.maxPlayers || 10;
+    numGroups = data.numGroups || 2;
+    tournamentId = data.tournamentId;
+    updatePlayerList();
+    initializeUI();
   }
 }
 
-function borrarDatosLocales() {
-  if (confirm("¿Estás seguro de borrar todos los datos del torneo?")) {
-    localStorage.removeItem("torneoData");
-    jugadores = [];
-    torneoId = null;
-    actualizarListaJugadores();
-    inicializarUI();
-    alert("Datos borrados. Puedes iniciar un nuevo torneo.");
+function clearLocalData() {
+  if (confirm("Are you sure you want to reset the tournament? This will delete all local data.")) {
+    localStorage.removeItem("tournamentData");
+    players = [];
+    tournamentId = null;
+    updatePlayerList();
+    initializeUI();
+    alert("Local data cleared. You can start a new tournament.");
   }
 }
 
 // ==============================
-// 🌐 CARGAR TORNEO EXTERNO
+// 🌐 LOAD EXISTING TOURNAMENT
 // ==============================
 
-async function cargarTorneoExterno(e) {
+async function loadExternalTournament(e) {
   e.preventDefault();
   const input = document.getElementById("external-id-input");
-  const mensaje = document.getElementById("load-message");
+  const message = document.getElementById("load-message");
   const id = input.value.trim();
 
-  if (!id) return (mensaje.textContent = "Por favor ingresa un ID válido.");
+  if (!id) return (message.textContent = "Please enter a valid tournament ID.");
 
   if (!window.db) {
-    return (mensaje.textContent = "Firebase no está disponible. No se puede cargar.");
+    return (message.textContent = "Firebase is not available. Cannot load external tournaments.");
   }
 
   try {
-    const ref = doc(window.db, "torneos", id);
+    const ref = doc(window.db, "tournaments", id);
     const snapshot = await getDoc(ref);
     if (snapshot.exists()) {
       const data = snapshot.data();
-      jugadores = data.jugadores || [];
-      maxJugadores = data.maxJugadores || 10;
-      numGrupos = data.numGrupos || 2;
-      torneoId = data.torneoId;
+      players = data.players || [];
+      maxPlayers = data.maxPlayers || 10;
+      numGroups = data.numGroups || 2;
+      tournamentId = data.tournamentId;
 
-      actualizarListaJugadores();
-      inicializarUI();
-      guardarLocal();
+      updatePlayerList();
+      initializeUI();
+      saveData();
 
-      mensaje.textContent = "✅ Torneo cargado correctamente.";
-      mensaje.classList.remove("text-red-500");
-      mensaje.classList.add("text-green-600");
+      message.textContent = "✅ Tournament loaded successfully.";
+      message.classList.remove("text-red-500");
+      message.classList.add("text-green-600");
     } else {
-      mensaje.textContent = "❌ No se encontró un torneo con ese ID.";
-      mensaje.classList.add("text-red-500");
+      message.textContent = "❌ No tournament found with that ID.";
+      message.classList.add("text-red-500");
     }
   } catch (err) {
     console.error(err);
-    mensaje.textContent = "Error al cargar el torneo.";
+    message.textContent = "Error loading the tournament.";
   }
 }
 
 // ==============================
-// 🧩 UTILIDADES
+// 🧩 UTILITIES
 // ==============================
 
-function generarIdTorneo() {
+function generateTournamentId() {
   return "T-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
