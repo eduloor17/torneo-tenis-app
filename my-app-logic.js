@@ -1,5 +1,5 @@
 // my-app-logic.js
-// Tennis Tournament Manager — Logic Layer
+// Tennis Tournament Manager — Logic Layer (Scoring, Ranking, and Cloud Sync)
 
 // Global state
 let players = [];
@@ -367,7 +367,7 @@ function renderMatches() {
     // ----------------------------------------------------------------
     let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Match Results (Best of 3 Sets)</h2>
-        <p class="text-sm text-gray-600 mb-4">Enter games won (0-8). Use 7-6 for a tiebreak set, then use the **Tiebreak** field below the score to register the *winner's points* (e.g., if the set was 7-6 (7-5), enter '7').</p>
+        <p class="text-sm text-gray-600 mb-4">Enter games won (0-8). Use 7-6 for a tiebreak set, then use the **TB** field below the score to register the *winner's points* (e.g., if the set was 7-6 (7-5), enter '7').</p>
         <div id="match-list" class="space-y-4">`;
 
     const groupedMatches = matches.reduce((acc, match) => {
@@ -413,7 +413,7 @@ function renderMatches() {
 }
 
 // Renders the single match card HTML structure
-function renderMatchCard(match, index = 0) {
+function renderMatchCard(match) {
     const isCompleted = match.winner !== null;
     const p1Name = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
     const p2Name = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
@@ -456,7 +456,8 @@ function renderScoreRow(match, playerIndex, name, pKey) {
         <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 w-1/3">${name}</td>`;
 
     for (let s = 0; s < 3; s++) {
-        const setScore = scores[s] || [];
+        // --- FIX: Use a fallback empty array if scores[s] is undefined ---
+        const setScore = scores[s] || []; 
         const games = isP1 ? setScore[0] : setScore[1];
         // The tiebreak score is stored from the WINNER's perspective in the 3rd element
         const tiebreak = setScore[2]; 
@@ -493,15 +494,12 @@ function getMatchScoreString(match) {
         if ((p1Games === 7 && p2Games === 6) || (p1Games === 6 && p2Games === 7) || (p1Games === 7 && p2Games === 7)) {
             const tiebreakScore = set[2];
             if (tiebreakScore !== undefined && tiebreakScore !== '') {
-                // Determine the loser's tiebreak score
+                // Determine the loser's tiebreak score for display (simplified)
                 let loserTBScore = 0;
-                if (p1Games > p2Games) { // P1 won the set
-                    loserTBScore = tiebreakScore - 2;
-                } else { // P2 won the set
-                    loserTBScore = tiebreakScore - 2;
+                if (tiebreakScore >= 2) {
+                   loserTBScore = tiebreakScore - 2;
                 }
                 
-                // For a 7-point tiebreak: 7-6(5). For a 10-point tiebreak: 7-7(8) (using simplified notation)
                 return `${score}(${loserTBScore})`;
             }
         }
@@ -518,7 +516,7 @@ function handleScoreChange(event) {
     const matchId = input.dataset.matchId;
     const pKey = input.dataset.player; 
     const setIndex = parseInt(input.dataset.setIndex);
-    const scoreType = input.dataset.scoreType; // 'games' or 'tiebreak'
+    const scoreType = input.dataset.scoreType; 
     
     // Use `input.value` to get the current string value and convert to number, or use `undefined` if empty
     let value = input.value.trim() === '' ? undefined : parseInt(input.value.trim());
@@ -603,13 +601,10 @@ function checkMatchWinner(match) {
             setsWonP2++;
         }
         
-        // Match Tiebreak (typically 1 set all, then 10-point tiebreak)
-        // We simplify: if a set score is 7-7, it represents the match tiebreak winner
-        else if (p1Games === 7 && p2Games === 7) { 
-            const tiebreakWinnerScore = set[2];
-            if (tiebreakWinnerScore !== undefined && tiebreakWinnerScore >= 10) {
-                 setsWonP1++; 
-            }
+        // Match Tiebreak (for 1-1 set score) - We simplify by assuming 7-7 or 8-8 etc. is a match tiebreak.
+        else if (setsWonP1 === 1 && setsWonP2 === 1 && (p1Games >= 10 || p2Games >= 10) && (p1Games > p2Games + 1 || p2Games > p1Games + 1)) {
+            // This is a custom check for a decisive set score over 10 games (e.g. 10-8)
+            if (p1Games > p2Games) { setsWonP1++; } else { setsWonP2++; }
         }
     });
 
