@@ -8,18 +8,20 @@ let numGroups = 2;
 let mode = "singles"; // or "doubles"
 let matches = [];
 
-// Entry point (called after Firebase auth)
+// Entry point (now called when DOM is ready)
 window.loadAndInitializeLogic = function () {
   console.log("🎾 App logic initialized");
   loadData();
-  
-  // *** FIX 1: Ensure setupUI runs only after the full document is loaded. ***
-  // We only need to call setupUI once the logic is ready AND the DOM is ready.
-  // Since the firebase logic is already checking for a user, we can trust
-  // it is called at the end of the script execution.
   setupUI();
   updateUI();
 };
+
+// FIX: Wait for the entire HTML document to load before running initialization logic
+document.addEventListener("DOMContentLoaded", () => {
+    if (typeof window.loadAndInitializeLogic === 'function') {
+        window.loadAndInitializeLogic();
+    }
+});
 
 // ---------------------------
 // UI SETUP
@@ -35,12 +37,6 @@ function setupUI() {
   const matchTypeSelector = document.getElementById("match-type");
   const startBtn = document.getElementById("btn-generate-matches");
 
-  // Check if all critical elements are found before proceeding.
-  if (!btnSetMax || !btnSetGroups || !addPlayerBtn) {
-    console.error("Critical button elements not found in DOM.");
-    return; // Stop execution if elements are missing
-  }
-
   // --- Match Type Selector Handler ---
   if (matchTypeSelector) {
     matchTypeSelector.value = mode; // Set initial value
@@ -53,55 +49,61 @@ function setupUI() {
 
 
   // --- Set Max Button Handler ---
-  btnSetMax.addEventListener("click", () => {
-    const newMax = parseInt(maxInput.value);
-    const msg = document.getElementById("set-max-message");
-    if (newMax >= 4 && newMax % 2 === 0) {
-      maxPlayers = newMax;
-      // If current players exceed new max, truncate the list
-      if (players.length > maxPlayers) {
-        players = players.slice(0, maxPlayers);
-        showStatus(`⚠️ Players truncated to ${maxPlayers}.`, "orange");
-      }
-      updateUI();
-      saveData();
-      msg.textContent = `✅ Max players updated to ${maxPlayers}`;
-      msg.className = "text-green-600 text-sm mt-1";
-    } else {
-      msg.textContent = "⚠️ Max players must be even and at least 4.";
-      msg.className = "text-red-600 text-sm mt-1";
-    }
-  });
+  if (btnSetMax) {
+        btnSetMax.addEventListener("click", () => {
+            const newMax = parseInt(maxInput.value);
+            const msg = document.getElementById("set-max-message");
+            if (newMax >= 4 && newMax % 2 === 0) {
+                maxPlayers = newMax;
+                // If current players exceed new max, truncate the list
+                if (players.length > maxPlayers) {
+                    players = players.slice(0, maxPlayers);
+                    showStatus(`⚠️ Players truncated to ${maxPlayers}.`, "orange");
+                }
+                updateUI();
+                saveData();
+                msg.textContent = `✅ Max players updated to ${maxPlayers}`;
+                msg.className = "text-green-600 text-sm mt-1";
+            } else {
+                msg.textContent = "⚠️ Max players must be even and at least 4.";
+                msg.className = "text-red-600 text-sm mt-1";
+            }
+        });
+    }
 
   // --- Set Groups Button Handler ---
-  btnSetGroups.addEventListener("click", () => {
-    const newGroups = parseInt(groupInput.value);
-    const msg = document.getElementById("set-group-message");
-    if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
-      numGroups = newGroups;
-      updateUI();
-      saveData();
-      msg.textContent = `✅ Groups updated to ${numGroups}`;
-      msg.className = "text-green-600 text-sm mt-1";
-    } else {
-      msg.textContent = `⚠️ Groups must divide max players (${maxPlayers}) evenly.`;
-      msg.className = "text-red-600 text-sm mt-1";
-    }
-  });
+  if (btnSetGroups) {
+        btnSetGroups.addEventListener("click", () => {
+            const newGroups = parseInt(groupInput.value);
+            const msg = document.getElementById("set-group-message");
+            if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
+                numGroups = newGroups;
+                updateUI();
+                saveData();
+                msg.textContent = `✅ Groups updated to ${numGroups}`;
+                msg.className = "text-green-600 text-sm mt-1";
+            } else {
+                msg.textContent = `⚠️ Groups must divide max players (${maxPlayers}) evenly.`;
+                msg.className = "text-red-600 text-sm mt-1";
+            }
+        });
+    }
 
   // --- Add Player Button Handler ---
-  addPlayerBtn.addEventListener("click", () => {
-    const name = playerNameInput.value.trim();
-    if (!name) return;
-    if (players.length >= maxPlayers) {
-      alert("Maximum players reached!");
-      return;
-    }
-    players.push(name);
-    playerNameInput.value = "";
-    updateUI();
-    saveData();
-  });
+  if (addPlayerBtn) {
+        addPlayerBtn.addEventListener("click", () => {
+            const name = playerNameInput.value.trim();
+            if (!name) return;
+            if (players.length >= maxPlayers) {
+                alert("Maximum players reached!");
+                return;
+            }
+            players.push(name);
+            playerNameInput.value = "";
+            updateUI();
+            saveData();
+        });
+    }
 
   // --- Generate Matches Button Handler (formerly Start Tournament) ---
   if (startBtn) {
