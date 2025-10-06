@@ -123,7 +123,7 @@ function setupUI() {
 
       generateMatches();
       saveData(true);
-      showStatus("✅ Matches generated. Check the console for match data.", "green");
+      showStatus("✅ Matches generated. Scroll down to see the groups and matches.", "green");
       console.log(matches);
     });
   }
@@ -156,6 +156,7 @@ function setupUI() {
     matches = [];
     
     updateUI();
+    renderMatches(); // Clear match display
     saveData(true); // Save the empty state to the new cloud ID
     showStatus("🗑️ Tournament reset. Starting a new Cloud session.", "red");
   });
@@ -221,6 +222,7 @@ async function loadData(loadFromCloud = false) {
   if (data.matches) matches = data.matches;
 
   updateUI();
+  renderMatches(); // <-- IMPORTANT: Render matches after loading data
   
   // Re-save to enforce the correct ID if we loaded an external one
   saveData();
@@ -293,7 +295,7 @@ function showStatus(message, color = "blue") {
 }
 
 // ---------------------------
-// MATCH GENERATION
+// MATCH GENERATION & RENDERING
 // ---------------------------
 function generateMatches() {
   matches = [];
@@ -317,10 +319,13 @@ function generateMatches() {
       for (let i = 0; i < group.length; i++) {
         for (let j = i + 1; j < group.length; j++) {
           matches.push({ 
+            id: crypto.randomUUID(), // Unique ID for match completion
             type: "singles", 
             group: groupIndex + 1,
             p1: group[i], 
-            p2: group[j] 
+            p2: group[j],
+            winner: null, // Null means not played
+            score: null
           });
         }
       }
@@ -335,10 +340,13 @@ function generateMatches() {
       for (let i = 0; i < teams.length; i++) {
         for (let j = i + 1; j < teams.length; j++) {
           matches.push({
+            id: crypto.randomUUID(), // Unique ID for match completion
             type: "doubles",
             group: groupIndex + 1,
             team1: teams[i],
             team2: teams[j],
+            winner: null,
+            score: null
           });
         }
       }
@@ -347,5 +355,116 @@ function generateMatches() {
   }
 
   console.log("🎾 Matches generated:", matches);
-  return matches;
+  renderMatches(); // <-- NEW CALL TO RENDER
 }
+
+function renderMatches() {
+    const container = document.getElementById("matches-container");
+    container.innerHTML = ''; // Clear previous content
+
+    if (matches.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 mt-4">No matches generated yet. Fill the players list and click "Generate Matches".</p>';
+        return;
+    }
+
+    // ----------------------------------------------------------------
+    // STEP 3: MATCHES SECTION
+    // ----------------------------------------------------------------
+    let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Match Results</h2>
+        <div id="match-list" class="space-y-4">`;
+
+    // Group matches by group number for better visual organization
+    const groupedMatches = matches.reduce((acc, match) => {
+        acc[match.group] = acc[match.group] || [];
+        acc[match.group].push(match);
+        return acc;
+    }, {});
+
+    for (const group in groupedMatches) {
+        html += `<div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <h3 class="text-xl font-semibold text-indigo-700 mb-3">Group ${group}</h3>
+            <div class="space-y-3">`;
+
+        groupedMatches[group].forEach((match, index) => {
+            const isCompleted = match.winner !== null;
+            let playerNames;
+            let options;
+            
+            if (match.type === 'singles') {
+                playerNames = `${match.p1} vs ${match.p2}`;
+                options = `<option value="${match.p1}" ${match.winner === match.p1 ? 'selected' : ''}>Winner: ${match.p1}</option>
+                           <option value="${match.p2}" ${match.winner === match.p2 ? 'selected' : ''}>Winner: ${match.p2}</option>`;
+            } else { // Doubles
+                const t1Name = match.team1.join(' / ');
+                const t2Name = match.team2.join(' / ');
+                playerNames = `${t1Name} vs ${t2Name}`;
+                options = `<option value="${t1Name}" ${match.winner === t1Name ? 'selected' : ''}>Winner: ${t1Name}</option>
+                           <option value="${t2Name}" ${match.winner === t2Name ? 'selected' : ''}>Winner: ${t2Name}</option>`;
+            }
+            
+            const winnerText = match.winner ? `Winner: ${match.winner}` : 'Select Winner';
+            const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
+            
+            html += `
+                <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
+                    <p class="text-lg font-bold text-gray-900 mb-2">Match ${index + 1}: ${playerNames}</p>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <select data-match-id="${match.id}" data-type="${match.type}" class="match-winner-select p-2 border border-gray-300 rounded-lg flex-grow">
+                            <option value="">-- ${winnerText} --</option>
+                            ${options}
+                        </select>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `</div></div>`; // Close group div and space-y-3 div
+    }
+
+    html += `</div></section>`; // Close Step 3 section
+
+    // ----------------------------------------------------------------
+    // STEP 4: STANDINGS SECTION (Placeholder)
+    // ----------------------------------------------------------------
+    html += `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">4. Group Standings</h2>
+        <div id="standings-list" class="text-gray-600">
+            <p>Standings logic is not implemented yet, but the match results will appear here!</p>
+        </div>
+    </section>`;
+
+    container.innerHTML = html;
+    
+    // --- Attach Event Listeners to the New Match Selectors ---
+    document.querySelectorAll('.match-winner-select').forEach(select => {
+        select.addEventListener('change', handleMatchResult);
+    });
+}
+
+
+function handleMatchResult(event) {
+    const select = event.target;
+    const matchId = select.dataset.matchId;
+    const winnerValue = select.value;
+    
+    const matchIndex = matches.findIndex(m => m.id === matchId);
+    if (matchIndex === -1) return;
+
+    // Update the match data
+    matches[matchIndex].winner = winnerValue || null;
+    matches[matchIndex].score = winnerValue ? '1-0' : null; // Simple score for now
+
+    // Re-render and save the data
+    saveData(true);
+    renderMatches();
+    // After re-render, the updateUI will handle the "completed" card styling
+
+    showStatus(`📝 Result saved! Winner: ${winnerValue}`, "indigo");
+}
+
+
+// ---------------------------
+// MATCH GENERATION
+// ---------------------------
+// (The generateMatches function is above, inside the main flow for simplicity)
