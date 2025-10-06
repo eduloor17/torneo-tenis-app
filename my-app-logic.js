@@ -1,175 +1,223 @@
-import {
-  doc,
-  setDoc,
-  getDoc,
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+// my-app-logic.js
+// Tennis Tournament Manager — Logic Layer
 
+// Global state
 let players = [];
-let matches = [];
 let maxPlayers = 10;
 let numGroups = 2;
-let matchType = "singles";
-let tournamentId = null;
+let mode = "singles"; // or "doubles"
+let matches = [];
 
+// Entry point (called after Firebase auth)
 window.loadAndInitializeLogic = function () {
-  console.log("✅ Logic initialized");
-  loadLocalData();
-  setupEvents();
+  console.log("🎾 App logic initialized");
+  loadData();
+  setupUI();
   updateUI();
 };
 
-// === Event Setup ===
-function setupEvents() {
-  document.getElementById("btn-configurar-max").addEventListener("click", () => {
-    const newMax = parseInt(document.getElementById("max-jugadores-input").value);
+// ---------------------------
+// UI SETUP
+// ---------------------------
+function setupUI() {
+  // DOM elements
+  const maxInput = document.getElementById("max-jugadores-input");
+  const groupInput = document.getElementById("num-grupos-input");
+  const maxDisplay = document.getElementById("max-jugadores-actual");
+  const btnSetMax = document.getElementById("btn-configurar-max");
+  const btnSetGroups = document.getElementById("btn-configurar-grupos");
+  const addPlayerBtn = document.getElementById("btn-agregar-participante");
+  const playerNameInput = document.getElementById("nombre-input");
+  const participantList = document.getElementById("lista-participantes");
+  const participantCounter = document.getElementById("contador-participantes");
+  const maxDisplay2 = document.getElementById("max-participantes-display");
+  const startBtn = document.getElementById("btn-iniciar");
+
+  // 🎾 Add match type selector
+  const modeSelectorContainer = document.createElement("div");
+  modeSelectorContainer.className = "mt-4 flex space-x-4";
+  modeSelectorContainer.innerHTML = `
+    <label class="flex items-center space-x-2">
+      <input type="radio" name="mode" value="singles" checked class="text-indigo-600">
+      <span>Singles</span>
+    </label>
+    <label class="flex items-center space-x-2">
+      <input type="radio" name="mode" value="doubles" class="text-indigo-600">
+      <span>Doubles (Random partners)</span>
+    </label>
+  `;
+  document.querySelector("#configuracion").appendChild(modeSelectorContainer);
+
+  document.querySelectorAll('input[name="mode"]').forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      mode = e.target.value;
+      saveData();
+      showStatus(`🎾 Mode changed to: ${mode.toUpperCase()}`, "green");
+    });
+  });
+
+  // --- Button Handlers ---
+  btnSetMax.addEventListener("click", () => {
+    const newMax = parseInt(maxInput.value);
+    const msg = document.getElementById("set-max-message") || createStatusMessage("max");
     if (newMax >= 4 && newMax % 2 === 0) {
       maxPlayers = newMax;
       updateUI();
       saveData();
-      alert(`✅ Max players set to ${maxPlayers}`);
+      msg.textContent = `✅ Max players updated to ${maxPlayers}`;
+      msg.className = "text-green-600 text-sm mt-1";
     } else {
-      alert("Max players must be even and at least 4.");
+      msg.textContent = "⚠️ Max players must be even and at least 4.";
+      msg.className = "text-red-600 text-sm mt-1";
     }
   });
 
-  document.getElementById("btn-configurar-grupos").addEventListener("click", () => {
-    const newGroups = parseInt(document.getElementById("num-grupos-input").value);
+  btnSetGroups.addEventListener("click", () => {
+    const newGroups = parseInt(groupInput.value);
+    const msg = document.getElementById("set-group-message") || createStatusMessage("group");
     if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
       numGroups = newGroups;
+      updateUI();
       saveData();
-      alert(`✅ Groups set to ${numGroups}`);
+      msg.textContent = `✅ Groups updated to ${numGroups}`;
+      msg.className = "text-green-600 text-sm mt-1";
     } else {
-      alert("Groups must divide total players evenly.");
+      msg.textContent = "⚠️ Groups must divide total players evenly.";
+      msg.className = "text-red-600 text-sm mt-1";
     }
   });
 
-  document.getElementById("match-type").addEventListener("change", (e) => {
-    matchType = e.target.value;
+  // Add player
+  addPlayerBtn.addEventListener("click", () => {
+    const name = playerNameInput.value.trim();
+    if (!name) return;
+    if (players.length >= maxPlayers) {
+      alert("Maximum players reached!");
+      return;
+    }
+    players.push(name);
+    playerNameInput.value = "";
+    updateUI();
     saveData();
   });
 
-  document.getElementById("btn-agregar-participante").addEventListener("click", addPlayer);
-  document.getElementById("btn-borrar-datos").addEventListener("click", clearLocalData);
-  document.getElementById("btn-generate-matches").addEventListener("click", generateMatches);
-}
-
-// === Player Logic ===
-function addPlayer() {
-  const input = document.getElementById("nombre-input");
-  const name = input.value.trim();
-  if (!name) return alert("Please enter a name.");
-  if (players.includes(name)) return alert("This player already exists.");
-  if (players.length >= maxPlayers) return alert("Max players reached.");
-
-  players.push(name);
-  input.value = "";
-  updatePlayerList();
-  saveData();
-}
-
-function removePlayer(index) {
-  players.splice(index, 1);
-  updatePlayerList();
-  saveData();
-}
-
-function updatePlayerList() {
-  const list = document.getElementById("lista-participantes");
-  list.innerHTML = "";
-  players.forEach((p, i) => {
-    const li = document.createElement("li");
-    li.textContent = p;
-    const btn = document.createElement("button");
-    btn.textContent = "❌";
-    btn.classList.add("ml-2", "text-red-500");
-    btn.onclick = () => removePlayer(i);
-    li.appendChild(btn);
-    list.appendChild(li);
-  });
-  document.getElementById("contador-participantes").textContent = players.length;
-  document.getElementById("contador-participantes-list").textContent = players.length;
-}
-
-// === Match Generator ===
-function generateMatches() {
-  if (players.length < 2) return alert("Need at least 2 players.");
-
-  const shuffled = [...players].sort(() => Math.random() - 0.5);
-  matches = [];
-
-  if (matchType === "singles") {
-    for (let i = 0; i < shuffled.length; i += 2) {
-      if (shuffled[i + 1]) matches.push([shuffled[i], shuffled[i + 1]]);
+  // Start tournament
+  startBtn.addEventListener("click", () => {
+    if (players.length < maxPlayers) {
+      alert(`You need ${maxPlayers - players.length} more players.`);
+      return;
     }
-  } else {
-    // DOUBLES: random partner assignment
-    const pairs = [];
-    for (let i = 0; i < shuffled.length; i += 2) {
-      if (shuffled[i + 1]) pairs.push([shuffled[i], shuffled[i + 1]]);
-    }
-    const shuffledPairs = [...pairs].sort(() => Math.random() - 0.5);
-    for (let i = 0; i < shuffledPairs.length; i += 2) {
-      if (shuffledPairs[i + 1]) matches.push([shuffledPairs[i], shuffledPairs[i + 1]]);
-    }
-  }
 
-  displayMatches();
-  saveData();
-}
-
-function displayMatches() {
-  const container = document.getElementById("matches-container");
-  container.innerHTML = "<h3 class='font-semibold text-lg mb-2'>Generated Matches</h3>";
-  matches.forEach((match, idx) => {
-    const div = document.createElement("div");
-    div.classList.add("p-2", "border", "rounded", "mb-1", "bg-gray-100");
-    if (matchType === "singles") {
-      div.textContent = `Match ${idx + 1}: ${match[0]} 🆚 ${match[1]}`;
-    } else {
-      div.textContent = `Match ${idx + 1}: ${match[0][0]} & ${match[0][1]} 🆚 ${match[1][0]} & ${match[1][1]}`;
-    }
-    container.appendChild(div);
+    generateMatches();
+    showStatus("✅ Tournament started! Matches generated.", "green");
+    console.log(matches);
   });
 }
 
-// === Save & Load ===
+// ---------------------------
+// DATA HANDLING
+// ---------------------------
 function saveData() {
-  const data = { players, matches, maxPlayers, numGroups, matchType, userId: window.userId };
-  localStorage.setItem("tournamentData", JSON.stringify(data));
-
-  if (window.db) {
-    const id = tournamentId || `T-${Math.random().toString(36).substring(2, 8)}`;
-    tournamentId = id;
-    const ref = doc(window.db, "tournaments", id);
-    setDoc(ref, data).then(() => console.log("Saved tournament:", id));
-  }
+  const data = { players, maxPlayers, numGroups, mode };
+  localStorage.setItem("tournament-data", JSON.stringify(data));
 }
 
-function loadLocalData() {
-  const data = JSON.parse(localStorage.getItem("tournamentData"));
-  if (data) {
-    players = data.players || [];
-    matches = data.matches || [];
-    maxPlayers = data.maxPlayers || 10;
-    numGroups = data.numGroups || 2;
-    matchType = data.matchType || "singles";
-    updatePlayerList();
-    displayMatches();
-  }
+function loadData() {
+  const data = JSON.parse(localStorage.getItem("tournament-data") || "{}");
+  if (data.players) players = data.players;
+  if (data.maxPlayers) maxPlayers = data.maxPlayers;
+  if (data.numGroups) numGroups = data.numGroups;
+  if (data.mode) mode = data.mode;
 }
 
-function clearLocalData() {
-  if (confirm("Are you sure you want to clear all data?")) {
-    localStorage.removeItem("tournamentData");
-    players = [];
-    matches = [];
-    updatePlayerList();
-    document.getElementById("matches-container").innerHTML = "";
-  }
-}
-
+// ---------------------------
+// UI UPDATES
+// ---------------------------
 function updateUI() {
   document.getElementById("max-jugadores-actual").textContent = maxPlayers;
   document.getElementById("max-participantes-display").textContent = maxPlayers;
-  document.getElementById("match-type").value = matchType;
+  document.getElementById("contador-participantes").textContent = players.length;
+  document.getElementById("contador-participantes-list").textContent = players.length;
+
+  const list = document.getElementById("lista-participantes");
+  list.innerHTML = "";
+  players.forEach((p) => {
+    const li = document.createElement("li");
+    li.textContent = p;
+    list.appendChild(li);
+  });
+
+  const startBtn = document.getElementById("btn-iniciar");
+  if (players.length === maxPlayers) {
+    startBtn.disabled = false;
+    startBtn.classList.remove("opacity-50", "cursor-not-allowed");
+    startBtn.textContent = "Start Tournament!";
+  } else {
+    startBtn.disabled = true;
+    startBtn.classList.add("opacity-50", "cursor-not-allowed");
+    startBtn.textContent = `Start Tournament (Need ${maxPlayers - players.length} more)`;
+  }
+
+  // Update mode selector
+  document.querySelectorAll('input[name="mode"]').forEach((radio) => {
+    radio.checked = radio.value === mode;
+  });
+}
+
+function createStatusMessage(type) {
+  const target =
+    type === "max"
+      ? document.querySelector("#btn-configurar-max").parentNode
+      : document.querySelector("#btn-configurar-grupos").parentNode;
+  const msg = document.createElement("p");
+  msg.id = type === "max" ? "set-max-message" : "set-group-message";
+  target.appendChild(msg);
+  return msg;
+}
+
+function showStatus(message, color = "blue") {
+  const div = document.createElement("div");
+  div.textContent = message;
+  div.className = `mt-3 text-${color}-600 text-sm font-semibold`;
+  document.querySelector("header").appendChild(div);
+  setTimeout(() => div.remove(), 4000);
+}
+
+// ---------------------------
+// MATCH GENERATION
+// ---------------------------
+function generateMatches() {
+  matches = [];
+
+  if (mode === "singles") {
+    // Round-robin between all players
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        matches.push({ type: "singles", p1: players[i], p2: players[j] });
+      }
+    }
+  } else {
+    // Randomly shuffle and pair players into teams
+    const shuffled = [...players].sort(() => Math.random() - 0.5);
+    const teams = [];
+    for (let i = 0; i < shuffled.length; i += 2) {
+      teams.push([shuffled[i], shuffled[i + 1]]);
+    }
+
+    // Every team plays against each other
+    for (let i = 0; i < teams.length; i++) {
+      for (let j = i + 1; j < teams.length; j++) {
+        matches.push({
+          type: "doubles",
+          team1: teams[i],
+          team2: teams[j],
+        });
+      }
+    }
+
+    console.log("🧩 Teams:", teams);
+  }
+
+  console.log("🎾 Matches generated:", matches);
+  return matches;
 }
