@@ -12,6 +12,11 @@ let matches = [];
 window.loadAndInitializeLogic = function () {
   console.log("🎾 App logic initialized");
   loadData();
+  
+  // *** FIX 1: Ensure setupUI runs only after the full document is loaded. ***
+  // We only need to call setupUI once the logic is ready AND the DOM is ready.
+  // Since the firebase logic is already checking for a user, we can trust
+  // it is called at the end of the script execution.
   setupUI();
   updateUI();
 };
@@ -27,24 +32,37 @@ function setupUI() {
   const btnSetGroups = document.getElementById("btn-configurar-grupos");
   const addPlayerBtn = document.getElementById("btn-agregar-participante");
   const playerNameInput = document.getElementById("nombre-input");
-  const matchTypeSelector = document.getElementById("match-type"); // Corrected ID for match type
-  const startBtn = document.getElementById("btn-generate-matches"); // Corrected ID for generate matches button
+  const matchTypeSelector = document.getElementById("match-type");
+  const startBtn = document.getElementById("btn-generate-matches");
+
+  // Check if all critical elements are found before proceeding.
+  if (!btnSetMax || !btnSetGroups || !addPlayerBtn) {
+    console.error("Critical button elements not found in DOM.");
+    return; // Stop execution if elements are missing
+  }
 
   // --- Match Type Selector Handler ---
-  matchTypeSelector.value = mode; // Set initial value
-  matchTypeSelector.addEventListener("change", (e) => {
-    mode = e.target.value;
-    saveData();
-    showStatus(`🎾 Mode changed to: ${mode.toUpperCase()}`, "green");
-  });
+  if (matchTypeSelector) {
+    matchTypeSelector.value = mode; // Set initial value
+    matchTypeSelector.addEventListener("change", (e) => {
+      mode = e.target.value;
+      saveData();
+      showStatus(`🎾 Mode changed to: ${mode.toUpperCase()}`, "green");
+    });
+  }
+
 
   // --- Set Max Button Handler ---
   btnSetMax.addEventListener("click", () => {
     const newMax = parseInt(maxInput.value);
-    // Get the existing status message div we added to the HTML
     const msg = document.getElementById("set-max-message");
     if (newMax >= 4 && newMax % 2 === 0) {
       maxPlayers = newMax;
+      // If current players exceed new max, truncate the list
+      if (players.length > maxPlayers) {
+        players = players.slice(0, maxPlayers);
+        showStatus(`⚠️ Players truncated to ${maxPlayers}.`, "orange");
+      }
       updateUI();
       saveData();
       msg.textContent = `✅ Max players updated to ${maxPlayers}`;
@@ -58,7 +76,6 @@ function setupUI() {
   // --- Set Groups Button Handler ---
   btnSetGroups.addEventListener("click", () => {
     const newGroups = parseInt(groupInput.value);
-    // Get the existing status message div we added to the HTML
     const msg = document.getElementById("set-group-message");
     if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
       numGroups = newGroups;
@@ -87,17 +104,18 @@ function setupUI() {
   });
 
   // --- Generate Matches Button Handler (formerly Start Tournament) ---
-  startBtn.addEventListener("click", () => {
-    if (players.length < maxPlayers) {
-      alert(`You need ${maxPlayers - players.length} more players to generate matches.`);
-      return;
-    }
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (players.length < maxPlayers) {
+        alert(`You need ${maxPlayers - players.length} more players to generate matches.`);
+        return;
+      }
 
-    generateMatches();
-    // NOTE: You may want to add a function here to display the matches to the DOM.
-    showStatus("✅ Matches generated. Check the console for match data.", "green");
-    console.log(matches);
-  });
+      generateMatches();
+      showStatus("✅ Matches generated. Check the console for match data.", "green");
+      console.log(matches);
+    });
+  }
 }
 
 // ---------------------------
@@ -124,9 +142,9 @@ function updateUI() {
   document.getElementById("max-jugadores-actual").textContent = maxPlayers;
   document.getElementById("max-participantes-display").textContent = maxPlayers;
 
-  // Update Group count display
+  // Update Group count display (This is where you see the current group number)
   const numGroupsDisplay = document.getElementById("num-grupos-actual");
-  if (numGroupsDisplay) numGroupsDisplay.textContent = numGroups; // Only update if element exists
+  if (numGroupsDisplay) numGroupsDisplay.textContent = numGroups;
 
   // Update Player Counter displays
   document.getElementById("contador-participantes").textContent = players.length;
@@ -143,14 +161,16 @@ function updateUI() {
 
   // Update "Generate Matches" button state
   const startBtn = document.getElementById("btn-generate-matches");
-  if (players.length === maxPlayers) {
-    startBtn.disabled = false;
-    startBtn.classList.remove("opacity-50", "cursor-not-allowed");
-    startBtn.textContent = "🎾 Generate Random Matches";
-  } else {
-    startBtn.disabled = true;
-    startBtn.classList.add("opacity-50", "cursor-not-allowed");
-    startBtn.textContent = `🎾 Generate Random Matches (Need ${maxPlayers - players.length} more)`;
+  if (startBtn) { // Safety check
+    if (players.length === maxPlayers) {
+      startBtn.disabled = false;
+      startBtn.classList.remove("opacity-50", "cursor-not-allowed");
+      startBtn.textContent = "🎾 Generate Random Matches";
+    } else {
+      startBtn.disabled = true;
+      startBtn.classList.add("opacity-50", "cursor-not-allowed");
+      startBtn.textContent = `🎾 Generate Random Matches (Need ${maxPlayers - players.length} more)`;
+    }
   }
   
   // Update mode selector to reflect current state
@@ -158,8 +178,6 @@ function updateUI() {
   if (matchTypeSelector) matchTypeSelector.value = mode;
 
 }
-
-// Removed createStatusMessage function as we added the divs to the HTML
 
 function showStatus(message, color = "blue") {
   const div = document.createElement("div");
