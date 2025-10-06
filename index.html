@@ -215,7 +215,7 @@
                 }
                 
                 // Una vez que el usuario está autenticado (o anónimo), obtenemos el UID
-                window.userId = window.auth.currentUser.uid;
+                window.userId = window.auth.currentUser .uid;
                 
                 // Llamamos a la lógica principal que está en my-app-logic.js
                 if (typeof window.loadAndInitializeLogic === 'function') {
@@ -243,8 +243,8 @@
         }
     </script>
     
-    <!-- Carga del archivo de lógica -->
-    <script type="text/javascript" src="./my-app-logic.js"></script>
+    <!-- Carga del archivo de lógica (AHORA COMO MÓDULO) -->
+    <script type="module" src="./my-app-logic.js"></script>
 
 </body>
 </html>
