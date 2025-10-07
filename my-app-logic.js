@@ -1,5 +1,5 @@
 // my-app-logic.js
-// Tennis Tournament Manager — Logic Layer (Pro Set to 8 Games con Bloqueo de Marcador)
+// Tennis Tournament Manager — Logic Layer (Pro Set to 8 Games con Playoffs)
 
 // Global state
 let players = [];
@@ -7,6 +7,7 @@ let maxPlayers = 10;
 let numGroups = 2;
 let mode = "singles"; // or "doubles"
 let matches = [];
+let playoffMatches = []; // NEW: Array to store playoff matches
 
 // Entry point (called after DOMContentLoaded and Firebase setup)
 window.loadAndInitializeLogic = function () {
@@ -154,6 +155,7 @@ function setupUI() {
         numGroups = 2;
         mode = "singles";
         matches = [];
+        playoffMatches = []; // Reset playoff matches too
         
         updateUI();
         renderMatches(); // Clear match display
@@ -167,7 +169,7 @@ function setupUI() {
 // DATA HANDLING (CLOUD & LOCAL)
 // ---------------------------
 async function saveData(saveToCloud = false) {
-  const data = { players, maxPlayers, numGroups, mode, matches, timestamp: Date.now() };
+  const data = { players, maxPlayers, numGroups, mode, matches, playoffMatches, timestamp: Date.now() }; // Save playoffMatches
   
   // 1. Save to Local Storage (always happens)
   localStorage.setItem("tournament-data", JSON.stringify(data));
@@ -220,6 +222,7 @@ async function loadData(loadFromCloud = false) {
   if (data.numGroups) numGroups = data.numGroups;
   if (data.mode) mode = data.mode;
   if (data.matches) matches = data.matches;
+  if (data.playoffMatches) playoffMatches = data.playoffMatches; // Load playoff matches
 
   updateUI();
   renderMatches(); 
@@ -298,6 +301,7 @@ function showStatus(message, color = "blue") {
 // ---------------------------
 function generateMatches() {
   matches = [];
+  playoffMatches = []; // Reset playoffs when regenerating groups
 
   if (players.length % numGroups !== 0) {
     showStatus(`⚠️ Cannot generate matches. Total players (${players.length}) must be divisible by number of groups (${numGroups}).`, "red");
@@ -322,7 +326,6 @@ function generateMatches() {
             p1: group[i], 
             p2: group[j],
             winner: null, 
-            // Score now stores a single [p1_games, p2_games] entry
             scores: [undefined, undefined] 
           });
         }
@@ -354,6 +357,59 @@ function generateMatches() {
   renderMatches(); 
 }
 
+// NEW FUNCTION: Generates the 3rd Place Match and Final based on group phase rankings
+function generatePlayoffMatches(standings) {
+    // Only generate playoffs if we have players and enough groups/data
+    if (players.length < 4 || numGroups < 2) return;
+
+    // Get the top 4 players from the global rankings
+    const top4 = standings.slice(0, 4).map(s => s.player);
+
+    if (top4.length < 4) return; // Not enough players for the final stages
+
+    // Check if group stage is complete (optional, but good practice)
+    const groupMatchesCompleted = matches.every(m => m.winner !== null);
+    if (!groupMatchesCompleted) return;
+
+    // Determine the players for the 3rd place and Final
+    // Assuming a simple 2-group structure where:
+    // 1st and 2nd global rank go to the Final
+    // 3rd and 4th global rank go to the 3rd place match
+    // NOTE: This logic needs adjustment for complex structures (e.g., 4 groups -> QF -> SF -> Finals)
+    // For now, we use the Top 4 from Global Rank for the final two matches.
+    const player1st = top4[0];
+    const player2nd = top4[1];
+    const player3rd = top4[2];
+    const player4th = top4[3];
+
+    // Clear existing playoffs if re-generating
+    playoffMatches = [];
+    
+    // 1. 3rd Place Match (3rd vs 4th Global Rank)
+    playoffMatches.push({
+        id: '3rd-place-match',
+        stage: '3rd Place Match',
+        p1: player3rd,
+        p2: player4th,
+        winner: null,
+        loser: null,
+        scores: [undefined, undefined],
+        type: 'singles' // Assuming singles for playoffs, adjust for doubles if needed
+    });
+
+    // 2. Final Match (1st vs 2nd Global Rank)
+    playoffMatches.push({
+        id: 'final-match',
+        stage: 'Final',
+        p1: player1st,
+        p2: player2nd,
+        winner: null,
+        loser: null,
+        scores: [undefined, undefined],
+        type: 'singles' // Assuming singles for playoffs, adjust for doubles if needed
+    });
+}
+
 function renderMatches() {
     const container = document.getElementById("matches-container");
     
@@ -364,10 +420,10 @@ function renderMatches() {
     }
 
     // ----------------------------------------------------------------
-    // STEP 3: MATCHES SECTION
+    // STEP 3: GROUP MATCHES SECTION
     // ----------------------------------------------------------------
     let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Match Results (Pro Set to 8 Games)</h2>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Group Match Results (Pro Set to 8 Games)</h2>
         <p class="text-sm text-gray-600 mb-4">A match is won by the first player to reach **8 games** with a two-game lead (e.g., 8-6). If tied at **7-7**, a 10-point tiebreak is played, and the final score will be **8-7**.</p>
         <div id="match-list" class="space-y-4">`;
 
@@ -395,34 +451,58 @@ function renderMatches() {
     html += `</div></section>`; 
 
     // ----------------------------------------------------------------
-    // STEP 4: STANDINGS SECTION
+    // STEP 4: STANDINGS & PLAYOFFS SECTION
     // ----------------------------------------------------------------
+    const standings = calculateStandings();
+    
+    // Check if all group matches are complete to generate playoffs
+    const allGroupMatchesComplete = matches.every(m => m.winner !== null);
+    if (allGroupMatchesComplete && playoffMatches.length === 0 && players.length >= 4 && numGroups >= 2) {
+        generatePlayoffMatches(standings);
+        saveData(false); // Save generated playoff matches locally/cloud
+    }
+    
     html += `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">4. Group Standings & Global Rank</h2>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">4. Group Standings, Playoffs & Global Rank</h2>
         <div id="standings-list" class="text-gray-600">
-            ${renderStandings(calculateStandings())}
+            ${renderStandings(standings)}
+        </div>
+        
+        ${allGroupMatchesComplete && playoffMatches.length > 0 ? renderPlayoffs(playoffMatches) : 
+            `<p class="mt-6 text-orange-600 font-semibold">Complete todos los partidos de grupo para generar las Semifinales y Finales.</p>`}
+        
+        <div id="final-rankings-display">
+             ${renderFinalRankings(standings)}
         </div>
     </section>`;
 
     container.innerHTML = html;
     
-    // Attach Event Listeners
-    document.querySelectorAll('.score-input').forEach(input => {
-        input.addEventListener('input', handleScoreChange);
+    // Attach Event Listeners to group match inputs
+    document.querySelectorAll('.group-score-input').forEach(input => {
+        input.addEventListener('input', handleGroupScoreChange);
+    });
+    
+    // Attach Event Listeners to playoff match inputs
+    document.querySelectorAll('.playoff-score-input').forEach(input => {
+        input.addEventListener('input', handlePlayoffScoreChange);
     });
 }
 
-// Renders the single match card HTML structure
+// Renders a generic match card (used for both group and playoff)
 function renderMatchCard(match) {
     const isCompleted = match.winner !== null;
-    const p1Name = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
-    const p2Name = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
+    const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
+    const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
     
     const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
     
+    const stageInfo = match.stage ? match.stage : `Group ${match.group}`;
+    const inputClass = match.stage ? 'playoff-score-input' : 'group-score-input';
+
     let cardHtml = `
         <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
-            <p class="text-lg font-bold text-gray-900 mb-2">Match ${match.group}: ${p1Name} vs ${p2Name}</p>
+            <p class="text-lg font-bold text-gray-900 mb-2">${stageInfo}: ${p1Name} vs ${p2Name}</p>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead>
@@ -432,8 +512,8 @@ function renderMatchCard(match) {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        ${renderScoreRow(match, 'p1', p1Name)}
-                        ${renderScoreRow(match, 'p2', p2Name)}
+                        ${renderScoreRow(match, 'p1', p1Name, inputClass)}
+                        ${renderScoreRow(match, 'p2', p2Name, inputClass)}
                     </tbody>
                 </table>
             </div>
@@ -452,7 +532,7 @@ function renderMatchCard(match) {
 }
 
 // Helper to render one row in the score table (Simplified for Pro Set)
-function renderScoreRow(match, pKey, name) {
+function renderScoreRow(match, pKey, name, inputClass) {
     const isP1 = pKey === 'p1';
     const games = isP1 ? match.scores[0] : match.scores[1]; 
     
@@ -467,7 +547,7 @@ function renderScoreRow(match, pKey, name) {
             <div class="flex flex-col items-center">
                 <input type="number" min="0" max="${maxGameInput}" value="${games !== undefined ? games : ''}" 
                        data-match-id="${match.id}" data-player="${pKey}" 
-                       class="score-input w-16 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
+                       class="${inputClass} w-16 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
                        ${isDisabled ? 'disabled' : ''}>
             </div>
         </td>
@@ -487,9 +567,9 @@ function getMatchScoreString(match) {
 
 
 // ---------------------------
-// MATCH RESULT HANDLER
+// MATCH RESULT HANDLERS
 // ---------------------------
-function handleScoreChange(event) {
+function handleGroupScoreChange(event) {
     const input = event.target;
     const matchId = input.dataset.matchId;
     const pKey = input.dataset.player; 
@@ -501,9 +581,8 @@ function handleScoreChange(event) {
     if (matchIndex === -1) return;
     const match = matches[matchIndex];
     
-    // Check if winner is already set and prevent change
+    // Prevent change if winner is already set
     if (match.winner !== null) {
-        // Revert input value to saved value
         input.value = (pKey === 'p1' ? match.scores[0] : match.scores[1]) || '';
         showStatus("⚠️ Cannot change score for a completed match.", "orange");
         return;
@@ -518,27 +597,82 @@ function handleScoreChange(event) {
     const matchResult = checkMatchWinner(match);
     match.winner = matchResult.winner;
 
-    // --- Dynamic UI Update ---
     // Re-render the specific card to apply the 'disabled' state if a winner was just found
     const cardContainer = document.getElementById(`match-card-${match.id}`);
     if (cardContainer) {
         cardContainer.innerHTML = renderMatchCard(match);
         // Re-attach event listeners to the newly rendered inputs in this card
-        cardContainer.querySelectorAll('.score-input').forEach(newInput => {
-            newInput.addEventListener('input', handleScoreChange);
+        cardContainer.querySelectorAll('.group-score-input').forEach(newInput => {
+            newInput.addEventListener('input', handleGroupScoreChange);
         });
     }
     
     if (match.winner) {
-         showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
+         showStatus(`🏆 Group Match complete! Winner: ${match.winner}`, "green");
     } else {
-        showStatus(`📝 Score updated. Current score: ${getMatchScoreString(match)}`, "indigo");
+        showStatus(`📝 Group Score updated. Current score: ${getMatchScoreString(match)}`, "indigo");
     }
 
-    // Update Standings
-    document.getElementById("standings-list").innerHTML = renderStandings(calculateStandings());
+    // Full render to check if Playoffs should be generated
+    renderMatches(); 
     
-    // Save data to the cloud/local
+    saveData(true);
+}
+
+function handlePlayoffScoreChange(event) {
+    const input = event.target;
+    const matchId = input.dataset.matchId;
+    const pKey = input.dataset.player; 
+    
+    let value = input.value.trim() === '' ? undefined : parseInt(input.value.trim());
+
+    // Find the match
+    const matchIndex = playoffMatches.findIndex(m => m.id === matchId);
+    if (matchIndex === -1) return;
+    const match = playoffMatches[matchIndex];
+    
+    // Prevent change if winner is already set
+    if (match.winner !== null) {
+        input.value = (pKey === 'p1' ? match.scores[0] : match.scores[1]) || '';
+        showStatus("⚠️ Cannot change score for a completed playoff match.", "orange");
+        return;
+    }
+
+    // Update the correct score position
+    const scorePosition = pKey === 'p1' ? 0 : 1;
+    
+    match.scores[scorePosition] = value;
+    
+    // Check for match winner and update the match object
+    const matchResult = checkMatchWinner(match);
+    match.winner = matchResult.winner;
+
+    // Set the loser
+    if (match.winner) {
+        const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
+        const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
+        match.loser = match.winner === p1Name ? p2Name : p1Name;
+    }
+
+    // Re-render the specific card to apply the 'disabled' state if a winner was just found
+    const cardContainer = document.getElementById(`match-card-${match.id}`);
+    if (cardContainer) {
+        cardContainer.innerHTML = renderMatchCard(match);
+        // Re-attach event listeners to the newly rendered inputs in this card
+        cardContainer.querySelectorAll('.playoff-score-input').forEach(newInput => {
+            newInput.addEventListener('input', handlePlayoffScoreChange);
+        });
+    }
+    
+    if (match.winner) {
+         showStatus(`🏆 Playoff Match complete! Winner: ${match.winner}`, "green");
+    } else {
+        showStatus(`📝 Playoff Score updated. Current score: ${getMatchScoreString(match)}`, "indigo");
+    }
+
+    // Full render to update final rankings
+    renderMatches(); 
+    
     saveData(true);
 }
 
@@ -551,8 +685,8 @@ function checkMatchWinner(match) {
     if (p1Games === undefined || p2Games === undefined) return { winner: null };
 
     // The two parties competing (Player 1 or Team 1, Player 2 or Team 2)
-    const p1Id = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
-    const p2Id = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
+    const p1Id = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
+    const p2Id = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
 
     const diff = Math.abs(p1Games - p2Games);
 
@@ -594,7 +728,7 @@ function calculateStandings() {
         };
     });
 
-    // 2. Aggregate stats from completed matches
+    // 2. Aggregate stats from completed matches (Group Matches only for this part)
     matches.forEach(match => {
         const isCompleted = match.winner !== null;
 
@@ -653,8 +787,7 @@ function calculateStandings() {
         if (b.gamesDiff !== a.gamesDiff) {
             return b.gamesDiff - a.gamesDiff; // Secondary: Games Diff (Higher is better)
         }
-        // If all else is equal, sort by player name for consistent ordering
-        return a.player.localeCompare(b.player); 
+        return b.gamesWon - a.gamesWon; // Tertiary: Games Won (Higher is better)
     });
     
     return standingsArray;
@@ -682,7 +815,7 @@ function renderStandings(standingsArray) {
             return acc;
         }, {});
 
-        // Sort groups internally (using the already calculated global sort, then re-sort based on rank within the group)
+        // Render sorted groups
         for (let g = 1; g <= totalGroups; g++) {
             const groupStats = standingsByGroup[g];
             if (!groupStats || groupStats.length === 0) continue;
@@ -707,8 +840,8 @@ function renderStandings(standingsArray) {
         html += `<div class="mt-8 border-t pt-4"></div>`;
     }
 
-    // --- 2. Render Global Standings ---
-    html += `<h3 class="text-xl font-bold text-gray-700 mb-4 ${totalGroups <= 1 ? '' : 'mt-6'} border-b pb-2">Clasificación Global</h3>`;
+    // --- 2. Render Global Standings (Group Phase Only) ---
+    html += `<h3 class="text-xl font-bold text-gray-700 mb-4 ${totalGroups <= 1 ? '' : 'mt-6'} border-b pb-2">Clasificación Global (Fase de Grupos)</h3>`;
     html += createStandingsTable(standingsArray, true);
     
     return html;
@@ -736,10 +869,89 @@ function createStandingsTable(statsArray, isGlobal) {
             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">${index + 1}</td>
             ${isGlobal ? `<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${stat.group || '-'}</td>` : ''}
             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stat.player}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.matchesPlayed > 0 ? stat.matchesWon : '-'}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.matchesPlayed > 0 ? stat.matchesWon : '0'}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.gamesWon}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.gamesLost}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-center font-bold text-${stat.gamesDiff >= 0 ? 'green-600' : 'red-600'}">${stat.gamesDiff}</td>
+        </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+    return html;
+}
+
+// NEW FUNCTION: Renders the playoff section
+function renderPlayoffs(playoffMatches) {
+    let html = `<div class="mt-8">
+        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Fase Eliminatoria (Top 4)</h3>
+        <p class="text-sm text-gray-600 mb-4">Los partidos son generados automáticamente en base a la Clasificación Global de la Fase de Grupos.</p>
+        <div id="playoff-match-list" class="space-y-4">`;
+
+    playoffMatches.forEach(match => {
+        html += `<div id="match-card-${match.id}">
+            ${renderMatchCard(match)}
+        </div>`;
+    });
+
+    html += `</div></div>`;
+    return html;
+}
+
+// NEW FUNCTION: Renders the final rankings 
+function renderFinalRankings(standings) {
+    const finalMatch = playoffMatches.find(m => m.stage === 'Final');
+    const thirdPlaceMatch = playoffMatches.find(m => m.stage === '3rd Place Match');
+
+    // Only proceed if playoffs exist and the final is complete
+    if (!finalMatch || !thirdPlaceMatch || finalMatch.winner === null || thirdPlaceMatch.winner === null) {
+        return `<p class="mt-6 text-gray-600 font-semibold border-t pt-4">Complete los partidos de la Fase Eliminatoria para ver el Ranking Final (1º a 4º).</p>`;
+    }
+
+    // Determine the positions
+    const rank1 = finalMatch.winner;
+    const rank2 = finalMatch.loser;
+    const rank3 = thirdPlaceMatch.winner;
+    const rank4 = thirdPlaceMatch.loser;
+    
+    // Get the remaining players from the group standings (those outside the top 4)
+    const top4Players = [rank1, rank2, rank3, rank4];
+    const remainingStandings = standings.filter(s => !top4Players.includes(s.player));
+
+    let html = `<div class="mt-8 border-t pt-4">
+        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Clasificación Final del Torneo (1º a ${players.length}º)</h3>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Pos.</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Player/Team</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Group</th>
+                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Result</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">`;
+
+    // 1st to 4th (from playoffs)
+    [[1, rank1, '🏆 Champion'], [2, rank2, '🥈 Runner-Up'], [3, rank3, '🥉 3rd Place'], [4, rank4, '4th Place']]
+    .forEach(([rank, player, result], index) => {
+        const playerStat = standings.find(s => s.player === player);
+        const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+        html += `<tr class="${bgColor}">
+            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-indigo-700 font-bold">${rank}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${player}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-500">${playerStat ? playerStat.group : '-'}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-center font-bold text-green-700">${result}</td>
+        </tr>`;
+    });
+
+    // 5th onwards (from group standings, already sorted by Group Phase criteria)
+    remainingStandings.forEach((stat, index) => {
+        const rank = 5 + index;
+        const bgColor = (4 + index) % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+        html += `<tr class="${bgColor}">
+            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-600">${rank}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stat.player}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-500">${stat.group}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-500">5th+ (Group Rank)</td>
         </tr>`;
     });
 
