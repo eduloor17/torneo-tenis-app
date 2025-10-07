@@ -406,16 +406,9 @@ function renderMatches() {
 
     container.innerHTML = html;
     
-    // Attach Event Listeners (only once after the initial render)
-    // We attach the change listener to a wrapper function to handle the blocking logic
+    // Attach Event Listeners
     document.querySelectorAll('.score-input').forEach(input => {
-        // Use 'input' event for real-time saving and update
         input.addEventListener('input', handleScoreChange);
-    });
-    
-    // Attach event listeners for the new "Block Score" button
-    document.querySelectorAll('.btn-block-score').forEach(button => {
-        button.addEventListener('click', toggleScoreBlock);
     });
 }
 
@@ -447,12 +440,12 @@ function renderMatchCard(match) {
             
             <div class="mt-3 flex justify-between items-center">
                 <p class="text-sm font-semibold text-gray-900">
-                    ${p1Name} vs ${p2Name} <span class="text-indigo-600 font-bold">${getMatchScoreString(match)}</span>
+                    Score: <span class="text-indigo-600 font-bold">${getMatchScoreString(match)}</span>
                 </p>
                  <p class="text-sm font-semibold ${isCompleted ? 'text-green-700' : 'text-gray-500'}" id="winner-status-${match.id}">
                     ${isCompleted ? `🏆 **Winner:** ${match.winner}` : 'Status: In Progress'}
                 </p>
-                </div>
+            </div>
         </div>
     `;
     return cardHtml;
@@ -461,13 +454,11 @@ function renderMatchCard(match) {
 // Helper to render one row in the score table (Simplified for Pro Set)
 function renderScoreRow(match, pKey, name) {
     const isP1 = pKey === 'p1';
-    // Match.scores is now just a single array: [p1_games, p2_games]
     const games = isP1 ? match.scores[0] : match.scores[1]; 
     
-    // Set input status based on match winner
+    // Disable input if a winner is set
     const isDisabled = match.winner !== null;
 
-    // Max games is typically 9 or 10 for a pro set finish (e.g. 9-8)
     const maxGameInput = 10; 
 
     let rowHtml = `<tr>
@@ -510,10 +501,11 @@ function handleScoreChange(event) {
     if (matchIndex === -1) return;
     const match = matches[matchIndex];
     
-    // Block change if winner is already set
+    // Check if winner is already set and prevent change
     if (match.winner !== null) {
+        // Revert input value to saved value
         input.value = (pKey === 'p1' ? match.scores[0] : match.scores[1]) || '';
-        showStatus("⚠️ Cannot change score for a completed match. Refresh to override.", "orange");
+        showStatus("⚠️ Cannot change score for a completed match.", "orange");
         return;
     }
 
@@ -527,8 +519,7 @@ function handleScoreChange(event) {
     match.winner = matchResult.winner;
 
     // --- Dynamic UI Update ---
-    // Instead of re-rendering the whole thing, let's update the specific card.
-    // This is the cleanest way to enforce the disabled state and update all text fields.
+    // Re-render the specific card to apply the 'disabled' state if a winner was just found
     const cardContainer = document.getElementById(`match-card-${match.id}`);
     if (cardContainer) {
         cardContainer.innerHTML = renderMatchCard(match);
@@ -536,6 +527,12 @@ function handleScoreChange(event) {
         cardContainer.querySelectorAll('.score-input').forEach(newInput => {
             newInput.addEventListener('input', handleScoreChange);
         });
+    }
+    
+    if (match.winner) {
+         showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
+    } else {
+        showStatus(`📝 Score updated. Current score: ${getMatchScoreString(match)}`, "indigo");
     }
 
     // Update Standings
@@ -656,7 +653,8 @@ function calculateStandings() {
         if (b.gamesDiff !== a.gamesDiff) {
             return b.gamesDiff - a.gamesDiff; // Secondary: Games Diff (Higher is better)
         }
-        return b.gamesWon - a.gamesWon; // Tertiary: Games Won (Higher is better)
+        // If all else is equal, sort by player name for consistent ordering
+        return a.player.localeCompare(b.player); 
     });
     
     return standingsArray;
@@ -669,13 +667,61 @@ function renderStandings(standingsArray) {
     if (standingsArray.length === 0 || standingsArray.every(s => s.group === 0)) {
         return '<p class="text-gray-500">No players registered or no matches have been played yet.</p>';
     }
+    
+    const totalGroups = Math.max(...standingsArray.map(s => s.group));
+    let html = '';
 
+    // --- 1. Render Group Standings (if more than one group) ---
+    if (totalGroups > 1) {
+        html += `<h3 class="text-xl font-bold text-gray-700 mb-4 mt-6 border-b pb-2">Clasificación por Grupos</h3>`;
+        
+        // Group players by their assigned group number
+        const standingsByGroup = standingsArray.reduce((acc, stat) => {
+            acc[stat.group] = acc[stat.group] || [];
+            acc[stat.group].push(stat);
+            return acc;
+        }, {});
+
+        // Sort groups internally (using the already calculated global sort, then re-sort based on rank within the group)
+        for (let g = 1; g <= totalGroups; g++) {
+            const groupStats = standingsByGroup[g];
+            if (!groupStats || groupStats.length === 0) continue;
+            
+            // Re-sort the group list based on the same criteria, but only using players in that group
+             groupStats.sort((a, b) => {
+                if (b.matchesWon !== a.matchesWon) {
+                    return b.matchesWon - a.matchesWon; 
+                }
+                if (b.gamesDiff !== a.gamesDiff) {
+                    return b.gamesDiff - a.gamesDiff; 
+                }
+                return b.gamesWon - a.gamesWon; 
+            });
+
+            html += `<div class="mb-6 p-4 border border-indigo-100 rounded-lg bg-indigo-50">
+                <h4 class="text-lg font-semibold text-indigo-800 mb-3">Grupo ${g}</h4>
+                ${createStandingsTable(groupStats, false)}
+            </div>`;
+        }
+        
+        html += `<div class="mt-8 border-t pt-4"></div>`;
+    }
+
+    // --- 2. Render Global Standings ---
+    html += `<h3 class="text-xl font-bold text-gray-700 mb-4 ${totalGroups <= 1 ? '' : 'mt-6'} border-b pb-2">Clasificación Global</h3>`;
+    html += createStandingsTable(standingsArray, true);
+    
+    return html;
+}
+
+// Helper function to create the actual HTML table structure
+function createStandingsTable(statsArray, isGlobal) {
     let html = `<div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Rank</th>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Group</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${isGlobal ? 'Global Rank' : 'Group Rank'}</th>
+                    ${isGlobal ? `<th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Group</th>` : ''}
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Player/Team</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">M Won</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">G Won</th>
@@ -685,12 +731,12 @@ function renderStandings(standingsArray) {
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">`;
 
-    standingsArray.forEach((stat, index) => {
+    statsArray.forEach((stat, index) => {
         html += `<tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">${index + 1}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${stat.group || '-'}</td>
+            ${isGlobal ? `<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${stat.group || '-'}</td>` : ''}
             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stat.player}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.matchesWon}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.matchesPlayed > 0 ? stat.matchesWon : '-'}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.gamesWon}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.gamesLost}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-center font-bold text-${stat.gamesDiff >= 0 ? 'green-600' : 'red-600'}">${stat.gamesDiff}</td>
