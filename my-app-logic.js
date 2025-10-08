@@ -1,5 +1,5 @@
 // my-app-logic.js
-// Tennis Tournament Manager — Logic Layer (Pro Set to 8 Games con Playoffs)
+// Tennis Tournament Manager — Logic Layer (Pro Set to 8 Games con Playoffs y Soporte para Dobles)
 
 // Global state
 let players = [];
@@ -7,7 +7,7 @@ let maxPlayers = 10;
 let numGroups = 2;
 let mode = "singles"; // or "doubles"
 let matches = [];
-let playoffMatches = []; // NEW: Array to store playoff matches
+let playoffMatches = []; // Array to store playoff matches
 
 // Entry point (called after DOMContentLoaded and Firebase setup)
 window.loadAndInitializeLogic = function () {
@@ -155,7 +155,7 @@ function setupUI() {
         numGroups = 2;
         mode = "singles";
         matches = [];
-        playoffMatches = []; // Reset playoff matches too
+        playoffMatches = []; 
         
         updateUI();
         renderMatches(); // Clear match display
@@ -222,7 +222,7 @@ async function loadData(loadFromCloud = false) {
   if (data.numGroups) numGroups = data.numGroups;
   if (data.mode) mode = data.mode;
   if (data.matches) matches = data.matches;
-  if (data.playoffMatches) playoffMatches = data.playoffMatches; // Load playoff matches
+  if (data.playoffMatches) playoffMatches = data.playoffMatches; 
 
   updateUI();
   renderMatches(); 
@@ -301,7 +301,7 @@ function showStatus(message, color = "blue") {
 // ---------------------------
 function generateMatches() {
   matches = [];
-  playoffMatches = []; // Reset playoffs when regenerating groups
+  playoffMatches = []; 
 
   if (players.length % numGroups !== 0) {
     showStatus(`⚠️ Cannot generate matches. Total players (${players.length}) must be divisible by number of groups (${numGroups}).`, "red");
@@ -334,18 +334,20 @@ function generateMatches() {
   } else {
     groups.forEach((group, groupIndex) => {
       const teams = [];
+      // Group players into teams of 2
       for (let i = 0; i < group.length; i += 2) {
         teams.push([group[i], group[i + 1]]);
       }
       
+      // Generate matches between teams
       for (let i = 0; i < teams.length; i++) {
         for (let j = i + 1; j < teams.length; j++) {
           matches.push({
             id: crypto.randomUUID(),
             type: "doubles",
             group: groupIndex + 1,
-            p1: teams[i], 
-            p2: teams[j], 
+            p1: teams[i], // Array of 2 players
+            p2: teams[j], // Array of 2 players
             winner: null,
             scores: [undefined, undefined],
           });
@@ -357,26 +359,21 @@ function generateMatches() {
   renderMatches(); 
 }
 
-// NEW FUNCTION: Generates the 3rd Place Match and Final based on group phase rankings
+// Generates the 3rd Place Match and Final based on group phase rankings (using team names)
 function generatePlayoffMatches(standings) {
     // Only generate playoffs if we have players and enough groups/data
     if (players.length < 4 || numGroups < 2) return;
 
-    // Get the top 4 players from the global rankings
-    const top4 = standings.slice(0, 4).map(s => s.player);
+    // Get the top 4 teams/players from the global rankings
+    const top4 = standings.slice(0, 4).map(s => s.player); // 'player' here is the team name or singles player name
 
-    if (top4.length < 4) return; // Not enough players for the final stages
+    if (top4.length < 4) return; 
 
     // Check if group stage is complete (optional, but good practice)
     const groupMatchesCompleted = matches.every(m => m.winner !== null);
     if (!groupMatchesCompleted) return;
 
     // Determine the players for the 3rd place and Final
-    // Assuming a simple 2-group structure where:
-    // 1st and 2nd global rank go to the Final
-    // 3rd and 4th global rank go to the 3rd place match
-    // NOTE: This logic needs adjustment for complex structures (e.g., 4 groups -> QF -> SF -> Finals)
-    // For now, we use the Top 4 from Global Rank for the final two matches.
     const player1st = top4[0];
     const player2nd = top4[1];
     const player3rd = top4[2];
@@ -394,7 +391,7 @@ function generatePlayoffMatches(standings) {
         winner: null,
         loser: null,
         scores: [undefined, undefined],
-        type: 'singles' // Assuming singles for playoffs, adjust for doubles if needed
+        type: mode // Use current mode for consistency
     });
 
     // 2. Final Match (1st vs 2nd Global Rank)
@@ -406,7 +403,7 @@ function generatePlayoffMatches(standings) {
         winner: null,
         loser: null,
         scores: [undefined, undefined],
-        type: 'singles' // Assuming singles for playoffs, adjust for doubles if needed
+        type: mode // Use current mode for consistency
     });
 }
 
@@ -457,7 +454,7 @@ function renderMatches() {
     
     // Check if all group matches are complete to generate playoffs
     const allGroupMatchesComplete = matches.every(m => m.winner !== null);
-    if (allGroupMatchesComplete && playoffMatches.length === 0 && players.length >= 4 && numGroups >= 2) {
+    if (allGroupMatchesComplete && playoffMatches.length === 0 && standings.length >= 4 && numGroups >= 2) {
         generatePlayoffMatches(standings);
         saveData(false); // Save generated playoff matches locally/cloud
     }
@@ -469,7 +466,7 @@ function renderMatches() {
         </div>
         
         ${allGroupMatchesComplete && playoffMatches.length > 0 ? renderPlayoffs(playoffMatches) : 
-            `<p class="mt-6 text-orange-600 font-semibold">Complete todos los partidos de grupo para generar las Semifinales y Finales.</p>`}
+            `<p class="mt-6 text-orange-600 font-semibold">Complete todos los partidos de grupo para generar la Fase Eliminatoria (Top 4).</p>`}
         
         <div id="final-rankings-display">
              ${renderFinalRankings(standings)}
@@ -492,8 +489,10 @@ function renderMatches() {
 // Renders a generic match card (used for both group and playoff)
 function renderMatchCard(match) {
     const isCompleted = match.winner !== null;
-    const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
-    const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
+    // Determine player/team name for display (handles both singles/string and doubles/array)
+    const getDisplayName = (p) => p.constructor === Array ? p.join(' / ') : p;
+    const p1Name = getDisplayName(match.p1);
+    const p2Name = getDisplayName(match.p2);
     
     const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
     
@@ -613,7 +612,7 @@ function handleGroupScoreChange(event) {
         showStatus(`📝 Group Score updated. Current score: ${getMatchScoreString(match)}`, "indigo");
     }
 
-    // Full render to check if Playoffs should be generated
+    // Full render to check if Playoffs should be generated and update standings
     renderMatches(); 
     
     saveData(true);
@@ -647,11 +646,9 @@ function handlePlayoffScoreChange(event) {
     const matchResult = checkMatchWinner(match);
     match.winner = matchResult.winner;
 
-    // Set the loser
+    // Set the loser (p1 and p2 in playoff matches are already strings (team name or player name))
     if (match.winner) {
-        const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
-        const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
-        match.loser = match.winner === p1Name ? p2Name : p1Name;
+        match.loser = match.winner === match.p1 ? match.p2 : match.p1;
     }
 
     // Re-render the specific card to apply the 'disabled' state if a winner was just found
@@ -684,7 +681,7 @@ function checkMatchWinner(match) {
 
     if (p1Games === undefined || p2Games === undefined) return { winner: null };
 
-    // The two parties competing (Player 1 or Team 1, Player 2 or Team 2)
+    // Determine the name used in the match (player name string or team name string)
     const p1Id = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
     const p2Id = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
 
@@ -711,75 +708,83 @@ function checkMatchWinner(match) {
 // RANKING SYSTEM
 // ---------------------------
 
-// Function to calculate standings for all players across all groups
+// Function to calculate standings for all players/teams across all groups
 function calculateStandings() {
     const stats = {};
+    const isDoubles = mode === "doubles";
 
-    // 1. Initialize stats for all players
-    players.forEach(p => {
-        stats[p] = {
-            player: p,
+    // 1. Determine the entities to rank (players or teams)
+    // We iterate over matches to determine the team/player names that exist in the tournament
+    const allCompetitors = new Set();
+    matches.forEach(match => {
+        const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
+        const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
+        allCompetitors.add(p1Name);
+        allCompetitors.add(p2Name);
+    });
+    
+    // 2. Initialize stats for all competitors
+    allCompetitors.forEach(competitorName => {
+        // Find the group number from a match where this competitor participated
+        const match = matches.find(m => {
+            const p1Name = m.p1.constructor === Array ? m.p1.join(' / ') : m.p1;
+            const p2Name = m.p2.constructor === Array ? m.p2.join(' / ') : m.p2;
+            return p1Name === competitorName || p2Name === competitorName;
+        });
+        
+        stats[competitorName] = {
+            player: competitorName, // This is the team name or singles player name
             matchesPlayed: 0,
             matchesWon: 0,
             gamesWon: 0,
             gamesLost: 0,
             gamesDiff: 0,
-            group: 0 
+            group: match ? match.group : 0 
         };
     });
 
-    // 2. Aggregate stats from completed matches (Group Matches only for this part)
+    // 3. Aggregate stats from completed matches (Group Matches only)
     matches.forEach(match => {
         const isCompleted = match.winner !== null;
 
-        const p1Name = match.type === 'singles' ? match.p1 : match.p1.join(' / ');
-        const p2Name = match.type === 'singles' ? match.p2 : match.p2.join(' / ');
+        const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
+        const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
 
-        const p1Members = match.type === 'singles' ? [match.p1] : match.p1;
-        const p2Members = match.type === 'singles' ? [match.p2] : match.p2;
-
-        // Scores array is [p1_games, p2_games]
         const totalGamesWonP1 = match.scores[0] || 0;
         const totalGamesWonP2 = match.scores[1] || 0;
 
         const winnerName = match.winner;
 
-        // Update stats for all members of Team 1
-        p1Members.forEach(member => {
-            if (stats[member]) {
-                stats[member].gamesWon += totalGamesWonP1;
-                stats[member].gamesLost += totalGamesWonP2;
-                stats[member].group = match.group;
-                
-                if (isCompleted) {
-                    stats[member].matchesPlayed++;
-                    stats[member].matchesWon += (winnerName === p1Name ? 1 : 0);
-                }
+        // Update stats for Competitor 1
+        if (stats[p1Name]) {
+            stats[p1Name].gamesWon += totalGamesWonP1;
+            stats[p1Name].gamesLost += totalGamesWonP2;
+            
+            if (isCompleted) {
+                stats[p1Name].matchesPlayed++;
+                stats[p1Name].matchesWon += (winnerName === p1Name ? 1 : 0);
             }
-        });
+        }
 
-        // Update stats for all members of Team 2
-        p2Members.forEach(member => {
-            if (stats[member]) {
-                stats[member].gamesWon += totalGamesWonP2;
-                stats[member].gamesLost += totalGamesWonP1;
-                stats[member].group = match.group;
+        // Update stats for Competitor 2
+        if (stats[p2Name]) {
+            stats[p2Name].gamesWon += totalGamesWonP2;
+            stats[p2Name].gamesLost += totalGamesWonP1;
 
-                if (isCompleted) {
-                    stats[member].matchesPlayed++;
-                    stats[member].matchesWon += (winnerName === p2Name ? 1 : 0);
-                }
+            if (isCompleted) {
+                stats[p2Name].matchesPlayed++;
+                stats[p2Name].matchesWon += (winnerName === p2Name ? 1 : 0);
             }
-        });
+        }
     });
 
-    // 3. Calculate Games Difference and convert to array
+    // 4. Calculate Games Difference and convert to array
     const standingsArray = Object.values(stats).map(stat => {
         stat.gamesDiff = stat.gamesWon - stat.gamesLost;
         return stat;
     });
 
-    // 4. Sort (Ranking Criteria: 1. Matches Won, 2. Games Difference, 3. Games Won)
+    // 5. Sort (Ranking Criteria: 1. Matches Won, 2. Games Difference, 3. Games Won)
     standingsArray.sort((a, b) => {
         if (b.matchesWon !== a.matchesWon) {
             return b.matchesWon - a.matchesWon; // Primary: Matches Won (Higher is better)
@@ -787,7 +792,11 @@ function calculateStandings() {
         if (b.gamesDiff !== a.gamesDiff) {
             return b.gamesDiff - a.gamesDiff; // Secondary: Games Diff (Higher is better)
         }
-        return b.gamesWon - a.gamesWon; // Tertiary: Games Won (Higher is better)
+        if (b.gamesWon !== a.gamesWon) {
+             return b.gamesWon - a.gamesWon; // Tertiary: Games Won (Higher is better)
+        }
+        // Fallback: sort by name for consistent ordering
+        return a.player.localeCompare(b.player); 
     });
     
     return standingsArray;
@@ -808,7 +817,7 @@ function renderStandings(standingsArray) {
     if (totalGroups > 1) {
         html += `<h3 class="text-xl font-bold text-gray-700 mb-4 mt-6 border-b pb-2">Clasificación por Grupos</h3>`;
         
-        // Group players by their assigned group number
+        // Group players/teams by their assigned group number
         const standingsByGroup = standingsArray.reduce((acc, stat) => {
             acc[stat.group] = acc[stat.group] || [];
             acc[stat.group].push(stat);
@@ -820,17 +829,8 @@ function renderStandings(standingsArray) {
             const groupStats = standingsByGroup[g];
             if (!groupStats || groupStats.length === 0) continue;
             
-            // Re-sort the group list based on the same criteria, but only using players in that group
-             groupStats.sort((a, b) => {
-                if (b.matchesWon !== a.matchesWon) {
-                    return b.matchesWon - a.matchesWon; 
-                }
-                if (b.gamesDiff !== a.gamesDiff) {
-                    return b.gamesDiff - a.gamesDiff; 
-                }
-                return b.gamesWon - a.gamesWon; 
-            });
-
+            // The stats array is already globally sorted. We just render the slice for the group.
+            
             html += `<div class="mb-6 p-4 border border-indigo-100 rounded-lg bg-indigo-50">
                 <h4 class="text-lg font-semibold text-indigo-800 mb-3">Grupo ${g}</h4>
                 ${createStandingsTable(groupStats, false)}
@@ -855,7 +855,7 @@ function createStandingsTable(statsArray, isGlobal) {
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${isGlobal ? 'Global Rank' : 'Group Rank'}</th>
                     ${isGlobal ? `<th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Group</th>` : ''}
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Player/Team</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${mode === 'doubles' ? 'Team' : 'Player'}</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">M Won</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">G Won</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">G Lost</th>
@@ -907,23 +907,23 @@ function renderFinalRankings(standings) {
         return `<p class="mt-6 text-gray-600 font-semibold border-t pt-4">Complete los partidos de la Fase Eliminatoria para ver el Ranking Final (1º a 4º).</p>`;
     }
 
-    // Determine the positions
+    // Determine the positions (players/teams are strings here)
     const rank1 = finalMatch.winner;
     const rank2 = finalMatch.loser;
     const rank3 = thirdPlaceMatch.winner;
     const rank4 = thirdPlaceMatch.loser;
     
-    // Get the remaining players from the group standings (those outside the top 4)
+    // Get the remaining players/teams from the group standings (those outside the top 4)
     const top4Players = [rank1, rank2, rank3, rank4];
     const remainingStandings = standings.filter(s => !top4Players.includes(s.player));
 
     let html = `<div class="mt-8 border-t pt-4">
-        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Clasificación Final del Torneo (1º a ${players.length}º)</h3>
+        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Clasificación Final del Torneo (1º a ${standings.length}º)</h3>
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Pos.</th>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Player/Team</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${mode === 'doubles' ? 'Team' : 'Player'}</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Group</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Result</th>
                 </tr>
