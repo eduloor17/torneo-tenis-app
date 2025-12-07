@@ -1,11 +1,50 @@
+/*
+ * styles.css
+ * Estilos para Tennis Tournament Manager
+ */
+
+/* --- Colores Base --- */
+:root {
+    --color-primary: #004d99; /* Azul oscuro */
+    --color-secondary: #007bff; /* Azul brillante */
+    --color-success: #28a745; /* Verde para éxito/ganador */
+    --color-danger: #dc3545; /* Rojo para borrar/peligro */
+    --color-background: #f4f4f9;
+    --color-card-bg: #fff;
+    --color-text-dark: #333;
+    --color-text-light: #6c757d;
+    --color-border: #ddd;
+    --color-highlight: #e9ecef;
+    --color-indigo: #6610f2;
+}
+
+/* --- Base & Tipografía --- */
 body {
     font-family: Arial, sans-serif;
     padding: 20px;
-    background-color: #f4f4f9;
-    color: #333;
+    background-color: var(--color-background);
+    color: var(--color-text-dark);
 }
 
-/* CONTENEDOR DE ENCABEZADO para alinear título y botón de reset */
+h1 {
+    color: var(--color-primary);
+    margin: 0;
+}
+
+h2 {
+    color: var(--color-primary);
+    border-bottom: 2px solid var(--color-highlight);
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+}
+
+h3 {
+    color: var(--color-primary);
+    font-size: 1.15em;
+    margin-bottom: 10px;
+}
+
+/* --- Layout Principal --- */
 #header-container {
     display: flex;
     align-items: center;
@@ -13,41 +52,90 @@ body {
     margin-bottom: 20px;
 }
 
-h1 {
-    color: #004d99;
-    margin: 0;
-}
-
-h2, h3 {
-    color: #004d99;
-}
-
 section {
     margin-bottom: 30px;
     padding: 20px;
-    background-color: #fff;
+    background-color: var(--color-card-bg);
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* --- ESTILOS GENERALES DE BOTONES --- */
+/* --- Secciones de Configuración --- */
+.config-section {
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+}
+
+.load-tournament-box {
+    border-color: var(--color-indigo);
+    background-color: #f7f3ff;
+}
+
+.info-text {
+    font-size: 12px;
+    color: var(--color-text-light);
+    margin-top: 5px;
+}
+
+.config-flex-container {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+.config-item {
+    padding: 10px 0;
+}
+
+.config-actions {
+    margin-top: 20px;
+}
+
+/* --- Mensajes de Estado --- */
+#load-message div {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    border: 1px solid;
+}
+
+/* Clases de utilidad de color (simulando Tailwind) */
+.text-indigo-700 { color: #430a90; }
+.text-gray-500 { color: var(--color-text-light); }
+.text-red-600 { color: var(--color-danger); }
+.text-green-600 { color: var(--color-success); }
+.text-green-700 { color: #1e7e34; }
+.text-orange-600 { color: #fd7e14; }
+
+/* --- Inputs y Botones Generales --- */
+input[type="text"], input[type="number"], select {
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    margin-right: 5px;
+}
+
 button {
-    padding: 10px 15px;
-    background-color: #007bff;
+    padding: 8px 12px;
+    background-color: var(--color-secondary);
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 4px;
     cursor: pointer;
-    margin-left: 10px;
     transition: background-color 0.3s;
+    font-weight: bold;
 }
 
 button:hover:not(:disabled) {
-    background-color: #0056b3;
+    background-color: var(--color-primary);
 }
 
 .danger-btn { 
-    background-color: #dc3545;
+    background-color: var(--color-danger);
 }
 
 .danger-btn:hover:not(:disabled) {
@@ -57,140 +145,159 @@ button:hover:not(:disabled) {
 button:disabled {
     background-color: #ccc;
     cursor: not-allowed;
-    opacity: 0.6; /* Hago la opacidad más visible para deshabilitado */
+    opacity: 0.6;
 }
 
-input[type="text"], input[type="number"], select { /* Agrego 'select' si lo usas */
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+.generate-btn {
+    font-size: 1.1em;
+    padding: 10px 15px;
+    margin-top: 10px;
 }
 
-/* --- ESTILOS ESPECÍFICOS DE LISTAS Y GRUPOS --- */
+/* --- Lista de Participantes --- */
+.add-player-form {
+    margin-bottom: 20px;
+}
+
+#nombre-input {
+    width: 250px;
+}
+
 #lista-participantes {
     list-style: none;
     padding: 0;
 }
 
 #lista-participantes li {
-    background: #e9ecef;
+    background: var(--color-highlight);
     margin: 5px 0;
     padding: 8px;
     border-radius: 4px;
+    color: var(--color-text-dark);
 }
 
-#grupos-container {
-    display: flex;
-    justify-content: space-around;
-    gap: 20px;
+/* --- Tarjetas de Partido (Match Cards) --- */
+.group-box {
     margin-bottom: 20px;
-}
-
-.grupo-box {
-    flex: 1;
     padding: 15px;
-    border: 1px solid #004d99;
+    border: 1px solid var(--color-primary);
     border-radius: 5px;
+    background-color: #f7faff;
 }
 
+.group-title {
+    color: var(--color-primary);
+    font-size: 1.3em;
+    border-bottom: 1px solid var(--color-primary);
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+}
 
-/* --- ESTILOS DE LA TABLA DE PARTIDOS Y STANDINGS --- */
 .match-card {
-    /* Estilo básico de la tarjeta de partido */
-    border: 1px solid #ddd;
-    background-color: #fff;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-card-bg);
     padding: 15px;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .match-card.completed {
-    /* Resaltado visual para partidos terminados */
-    border: 3px solid #28a745; /* Borde verde */
+    border: 3px solid var(--color-success);
     box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
 }
 
-.ranking-table, #playoffs table, .match-card table { /* Aplica a todas las tablas de resultados */
+.match-card table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 10px;
 }
 
-.ranking-table th, .ranking-table td, #playoffs th, #playoffs td, .match-card th, .match-card td {
-    border: 1px solid #ddd;
+.match-card th, .match-card td {
+    border: 1px solid var(--color-highlight);
     padding: 8px;
-    text-align: left;
-    font-size: 14px; /* Ajuste para espacio */
+    text-align: center;
+    font-size: 14px;
 }
 
-.ranking-table th, .match-card th {
+.match-card th {
     background-color: #f2f2f2;
 }
 
+/* Ajuste para que el nombre del jugador se alinee a la izquierda */
+.match-card td:first-child, .ranking-table td:nth-child(2), .ranking-table th:nth-child(2) {
+    text-align: left;
+}
 
-/* --- ESTILOS DE INPUTS DE SCORE Y BOTONES RÁPIDOS (CLAVE) --- */
-
-.set-score-input {
-    width: 50px; /* Tamaño del input de juegos */
-    padding: 4px;
-    border: 1px solid #ccc;
+.score-input {
+    width: 60px;
+    padding: 6px;
+    border: 1px solid var(--color-border);
     border-radius: 4px;
     text-align: center;
     font-size: 14px;
 }
 
-/* Contenedor del input + botón rápido para el set activo */
-.match-card td > div.flex {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px; /* space-y-1 en Tailwind */
-}
-
-.btn-quick-set-win {
-    /* Estilo del botón de Quick Win */
-    background-color: #28a745; /* Verde */
-    color: white;
-    padding: 2px 4px;
-    font-size: 10px; /* Texto más pequeño */
-    border-radius: 3px;
-    width: 100%; /* Ocupa el ancho disponible */
-    margin-left: 0; /* Anula el margin-left del botón general */
-}
-
-.btn-quick-set-win:hover:not(:disabled) {
-    background-color: #1e7e34;
-}
-
-.btn-add-set {
-    /* Estilo del botón de añadir set (ej. Tailwind bg-indigo-500) */
-    background-color: #6610f2;
-    padding: 5px 10px;
-    font-size: 12px;
-    margin-left: 0;
-}
-
-.btn-add-set:hover:not(:disabled) {
-    background-color: #5107d3;
-}
-
-/* Clase de color que usa el JS */
-.text-indigo-600 {
-    color: #6610f2;
-}
-.text-green-700 {
-    color: #1e7e34;
-}
-.text-gray-500 {
-    color: #6c757d;
-}
-
-/* Flex para la fila de botones/estado */
 .match-card .mt-3.flex {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end; /* Solo se muestra el estado/ganador */
     align-items: center;
     margin-top: 10px;
     padding-top: 5px;
     border-top: 1px solid #eee;
+}
+
+/* --- Tablas de Clasificación (Standings) --- */
+.ranking-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.ranking-table th, .ranking-table td {
+    border: 1px solid var(--color-border);
+    padding: 10px 8px;
+    text-align: center;
+}
+
+.ranking-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.ranking-table tbody tr:nth-child(odd) {
+    background-color: var(--color-card-bg);
+}
+
+.ranking-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.group-rankings-title, .playoffs-title, .final-ranking-title {
+    font-size: 1.5em;
+    color: var(--color-indigo);
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+/* Contenedor de rankings por grupo */
+.ranking-section .mb-6 {
+    border: 1px solid #e0e7ff;
+    background-color: #f5f7ff;
+}
+
+/* Media Queries para mejor visualización en móviles */
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
+    .config-flex-container {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    #nombre-input {
+        width: 60%;
+    }
 }
