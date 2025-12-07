@@ -1,5 +1,5 @@
 // my-app-logic.js
-// Tennis Tournament Manager — Logic Layer (Sets Variables y Registro por Set/Juego)
+// Tennis Tournament Manager — Logic Layer (Sets, Quick Win Buttons, y Configuración Corregida)
 
 // Global state
 let players = [];
@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // ---------------------------
-// UI SETUP (SIN CAMBIOS RELEVANTES AQUÍ)
+// UI SETUP (CORREGIDO PARA CONFIGURACIÓN)
 // ---------------------------
 function setupUI() {
     // DOM elements
@@ -51,8 +51,11 @@ function setupUI() {
     const externalIdInput = document.getElementById("external-id-input");
     const resetBtn = document.getElementById("btn-borrar-datos");
     
-    // Aseguramos que el input de la UI refleje el valor por defecto
+    // Aseguramos que el input de la UI refleje el valor por defecto/guardado (CORRECCIÓN)
     if (gamesPerSetInput) gamesPerSetInput.value = maxGamesPerSet;
+    if (maxInput) maxInput.value = maxPlayers; 
+    if (groupInput) groupInput.value = numGroups; 
+
 
     // --- Match Type Selector Handler ---
     if (matchTypeSelector) {
@@ -82,7 +85,7 @@ function setupUI() {
         });
     }
 
-    // --- Set Max Button Handler ---
+    // --- Set Max Button Handler (CORRECCIÓN) ---
     if (btnSetMax) {
         btnSetMax.addEventListener("click", () => {
             const newMax = parseInt(maxInput.value);
@@ -93,7 +96,7 @@ function setupUI() {
                     players = players.slice(0, maxPlayers);
                     showStatus(`⚠️ Players truncated to ${maxPlayers}.`, "orange");
                 }
-                updateUI();
+                updateUI(); // ¡CRUCIAL! Para actualizar los contadores y la lista
                 saveData(true);
                 msg.textContent = `✅ Max players updated to ${maxPlayers}`;
                 msg.className = "text-green-600 text-sm mt-1";
@@ -104,14 +107,14 @@ function setupUI() {
         });
     }
 
-    // --- Set Groups Button Handler ---
+    // --- Set Groups Button Handler (CORRECCIÓN) ---
     if (btnSetGroups) {
         btnSetGroups.addEventListener("click", () => {
             const newGroups = parseInt(groupInput.value);
             const msg = document.getElementById("set-group-message");
             if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
                 numGroups = newGroups;
-                updateUI();
+                updateUI(); // ¡CRUCIAL! Para actualizar la UI
                 saveData(true);
                 msg.textContent = `✅ Groups updated to ${numGroups}`;
                 msg.className = "text-green-600 text-sm mt-1";
@@ -122,7 +125,7 @@ function setupUI() {
         });
     }
 
-    // --- Add Player Button Handler ---
+    // --- Add Player Button Handler (CORRECCIÓN) ---
     if (addPlayerBtn) {
         addPlayerBtn.addEventListener("click", () => {
             const name = playerNameInput.value.trim();
@@ -133,7 +136,7 @@ function setupUI() {
             }
             players.push(name);
             playerNameInput.value = "";
-            updateUI();
+            updateUI(); // ¡CRUCIAL! Para actualizar el contador y la lista
             saveData(true);
         });
     }
@@ -326,16 +329,20 @@ async function loadData(loadFromCloud = false) {
 }
 
 // ---------------------------
-// UI UPDATES (SIN CAMBIOS RELEVANTES AQUÍ)
+// UI UPDATES 
 // ---------------------------
 function updateUI() {
     // Update Max Players displays
     document.getElementById("max-jugadores-actual").textContent = maxPlayers;
     document.getElementById("max-participantes-display").textContent = maxPlayers;
+    const maxInput = document.getElementById("max-jugadores-input");
+    if (maxInput) maxInput.value = maxPlayers; // Asegura que el input refleje el valor
 
     // Update Group count display
     const numGroupsDisplay = document.getElementById("num-grupos-actual");
     if (numGroupsDisplay) numGroupsDisplay.textContent = numGroups;
+    const groupInput = document.getElementById("num-grupos-input");
+    if (groupInput) groupInput.value = numGroups; // Asegura que el input refleje el valor
     
     // Update Max Games Per Set display (NEW)
     const maxGamesDisplay = document.getElementById("max-games-set-actual");
@@ -385,7 +392,20 @@ function updateUI() {
 function showStatus(message, color = "blue") {
     const div = document.createElement("div");
     div.textContent = message;
-    div.className = `mt-3 text-${color}-600 text-sm font-semibold`;
+    
+    // Convert Tailwind classes to standard CSS classes/styles if necessary, 
+    // or rely on the provided CSS file's definitions.
+    // Assuming the provided CSS covers these colors:
+    const colorMap = {
+        "green": "text-green-600",
+        "red": "text-red-600",
+        "blue": "text-blue-600",
+        "indigo": "text-indigo-600",
+        "orange": "text-orange-600",
+        "gray": "text-gray-500"
+    };
+    
+    div.className = `mt-3 ${colorMap[color] || 'text-blue-600'} text-sm font-semibold`;
     
     // Get the element where messages are displayed (Load Message area)
     const messageArea = document.getElementById("load-message");
@@ -524,8 +544,8 @@ function renderMatches() {
     // ----------------------------------------------------------------
     // STEP 3: GROUP MATCHES SECTION
     // ----------------------------------------------------------------
-    let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Group Match Results (Best of 3 Sets)</h2>
+    let html = `<section class="match-section">
+        <h2>3. Enter Group Match Results (Best of 3 Sets)</h2>
         <p class="text-sm text-gray-600 mb-4">A set is won by the first player to reach **${maxGamesPerSet} games** with a two-game lead. If tied at **${maxGamesPerSet - 1}-${maxGamesPerSet - 1}**, a tiebreak is played, and the final score will be **${maxGamesPerSet}-${maxGamesPerSet - 1}**. **All matches are decided by winning 2 sets.**</p>
         <div id="match-list" class="space-y-4">`;
 
@@ -536,8 +556,8 @@ function renderMatches() {
     }, {});
 
     for (const group in groupedMatches) {
-        html += `<div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-            <h3 class="text-xl font-semibold text-indigo-700 mb-3">Group ${group}</h3>
+        html += `<div class="group-box">
+            <h3 class="group-title">Group ${group}</h3>
             <div id="group-${group}-matches" class="space-y-3">`;
 
         groupedMatches[group].forEach((match) => {
@@ -562,8 +582,8 @@ function renderMatches() {
         saveData(false);
     }
     
-    html += `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">4. Group Standings, Playoffs & Global Rank</h2>
+    html += `<section class="ranking-section">
+        <h2>4. Group Standings, Playoffs & Global Rank</h2>
         <div id="standings-list" class="text-gray-600">
             ${renderStandings(standings)}
         </div>
@@ -588,7 +608,7 @@ function renderMatches() {
         button.addEventListener('click', handleAddSet);
     });
     
-    // *** NUEVO: Attach Event Listeners to "Quick Win" buttons ***
+    // *** Attach Event Listeners to "Quick Win" buttons ***
     document.querySelectorAll('.btn-quick-set-win').forEach(button => {
         button.addEventListener('click', handleQuickSetWin);
     });
@@ -601,7 +621,7 @@ function renderMatchCard(match) {
     const p1Name = getDisplayName(match.p1);
     const p2Name = getDisplayName(match.p2);
     
-    const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
+    const cardClass = isCompleted ? 'match-card completed' : 'match-card';
     
     const isPlayoff = match.stage;
     const stageInfo = isPlayoff ? match.stage : `Group ${match.group}`;
@@ -610,22 +630,22 @@ function renderMatchCard(match) {
     // Determinar el índice del set actual (último set no completado)
     let currentSetIndex = match.scores.length - 1;
     // Buscamos si el último set ya está completo para determinar si se necesita el siguiente set
-    while (currentSetIndex >= 0 && checkSetWinner(match.scores[currentSetIndex]) !== null) {
-        currentSetIndex++;
-    }
-    // Si el currentSetIndex supera el número actual de sets, retrocedemos al último set existente
-    if (currentSetIndex >= match.scores.length) {
-        currentSetIndex = match.scores.length - 1;
-    }
+    let lastSetFinished = match.scores.length > 0 && checkSetWinner(match.scores[match.scores.length - 1]) !== null;
+
+    // Si el último set está acabado, el 'currentSetIndex' debe apuntar al siguiente set que AÚN NO EXISTE.
+    // Si el último set NO está acabado, el 'currentSetIndex' apunta al set actual.
+    // Para renderizar correctamente, solo necesitamos saber si el último set existente está acabado para habilitar el botón "+Add Set".
     
-    const isCurrentSetFinished = match.scores.length > 0 && checkSetWinner(match.scores[match.scores.length - 1]) !== null;
+    const isCurrentSetFinished = lastSetFinished;
     const disableQuickWin = isCompleted || isCurrentSetFinished;
+    const currentSetIdxToRenderQuickWin = isCurrentSetFinished ? match.scores.length : match.scores.length - 1;
+
 
     let cardHtml = `
-        <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
+        <div class="${cardClass}">
             <p class="text-lg font-bold text-gray-900 mb-2">${stageInfo}: ${p1Name} vs ${p2Name}</p>
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table>
                     <thead>
                         <tr>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Team/Player</th>
@@ -635,15 +655,15 @@ function renderMatchCard(match) {
                             <th class="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase">Total Games Won</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        ${renderSetScoreRow(match, 'p1', p1Name, inputClass, disableQuickWin, currentSetIndex)}
-                        ${renderSetScoreRow(match, 'p2', p2Name, inputClass, disableQuickWin, currentSetIndex)}
+                    <tbody>
+                        ${renderSetScoreRow(match, 'p1', p1Name, inputClass, disableQuickWin, currentSetIdxToRenderQuickWin)}
+                        ${renderSetScoreRow(match, 'p2', p2Name, inputClass, disableQuickWin, currentSetIdxToRenderQuickWin)}
                     </tbody>
                 </table>
             </div>
             
-            <div class="mt-3 flex justify-between items-center">
-                 <button class="btn-add-set bg-indigo-500 hover:bg-indigo-600 text-white text-xs px-2 py-1 rounded-md transition duration-150 ${isCompleted || !isCurrentSetFinished ? 'opacity-50 cursor-not-allowed' : ''}" 
+            <div class="mt-3 flex">
+                 <button class="btn-add-set ${isCompleted || !isCurrentSetFinished ? 'disabled' : ''}" 
                         data-match-id="${match.id}" ${isCompleted || !isCurrentSetFinished ? 'disabled' : ''}>
                     + Add Set
                 </button>
@@ -676,31 +696,32 @@ function renderSetScoreRow(match, pKey, name, inputClass, disableQuickWin, curre
         const inputValue = (games !== undefined && games !== null) ? games : ''; 
         
         // Determinar si es el set actual para mostrar el botón de Quick Win
-        const isSetCurrent = setIndex === currentSetIndex && !isDisabled;
+        // Solo mostramos el Quick Win si el set está ABIERTO (setIndex == match.scores.length - 1)
+        const isSetCurrentOpen = setIndex === match.scores.length - 1 && !isDisabled && checkSetWinner(setScore) === null;
         
         let content;
-        if (isSetCurrent) {
-            // Mostrar input y botón de Quick Win para el set actual
+        
+        // Si el set está en el índice final Y NO ESTÁ COMPLETADO:
+        if (isSetCurrentOpen) {
             content = `
-                <div class="flex flex-col items-center space-y-1">
+                <div class="flex">
                     <input type="number" min="0" max="${maxInputGames}" value="${inputValue}" 
                            data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
-                           class="${inputClass} set-score-input w-14 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
+                           class="${inputClass} set-score-input"
                            ${isDisabled ? 'disabled' : ''}>
-                    <button class="btn-quick-set-win bg-green-500 hover:bg-green-600 text-white text-xs px-1 py-0.5 rounded-sm w-full 
-                                    ${disableQuickWin ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    <button class="btn-quick-set-win ${disableQuickWin ? 'disabled' : ''}" 
                             data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
                             ${disableQuickWin ? 'disabled' : ''}>
-                        Set Win (6-4)
+                        Set Win (${maxGamesPerSet}-${maxGamesPerSet - 2})
                     </button>
                 </div>
             `;
         } else {
-            // Mostrar solo el input (o el valor si está deshabilitado)
+             // Si el set está completado o es un set anterior, solo se muestra el input
              content = `
                  <input type="number" min="0" max="${maxInputGames}" value="${inputValue}" 
                        data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
-                       class="${inputClass} set-score-input w-14 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
+                       class="${inputClass} set-score-input ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
                        ${isDisabled ? 'disabled' : ''}>
              `;
         }
@@ -772,7 +793,14 @@ function handleAddSet(event) {
     
     // Solo permitir añadir un set si el último set ya está completo
     if (match.scores.length > 0 && checkSetWinner(match.scores[match.scores.length - 1]) === null) {
+        // Esto no debería suceder si el botón está deshabilitado correctamente, pero es una buena salvaguarda.
         showStatus("⚠️ Please complete the current set before adding a new one.", "orange");
+        return;
+    }
+    
+    // Solo permitir añadir hasta el set de desempate (máximo 3 sets en total)
+    if (match.scores.length >= 3) {
+        showStatus("⚠️ The match already has 3 sets (Max allowed in Best of 3).", "orange");
         return;
     }
 
@@ -804,15 +832,14 @@ function handleQuickSetWin(event) {
     const maxGames = maxGamesPerSet;
     const isP1 = pKey === 'p1';
     
-    // Aplicar el marcador estándar de set ganado por diferencia de 2
+    // Aplicar el marcador estándar de set ganado por diferencia de 2 (ej. 6-4)
     let p1Games = isP1 ? maxGames : maxGames - 2;
     let p2Games = isP1 ? maxGames - 2 : maxGames;
     
-    // El set tiene que tener una puntuación mínima. Si maxGames=6, 6-4.
-    if (maxGames < 4) { 
-        // Si la configuración es extraña, usamos la mínima diferencia
-        p1Games = isP1 ? maxGames : 0; 
-        p2Games = isP1 ? 0 : maxGames; 
+    // Asegurarse de que la puntuación no es negativa si maxGames es muy pequeño (aunque ya validamos min=4)
+    if (maxGames - 2 < 0) { 
+        p1Games = isP1 ? maxGames : 0;
+        p2Games = isP1 ? 0 : maxGames;
     }
     
     // Actualizar el score del set
@@ -831,7 +858,10 @@ function checkAndHandleMatchWinner(match) {
     // Si ganador encontrado, set loser for playoffs
     const isGroupMatch = match.group !== undefined && match.stage === undefined;
     if (match.winner && !isGroupMatch) {
-        match.loser = match.winner === match.p1 ? match.p2 : match.p1;
+        // En los playoffs, el perdedor pasa a la siguiente fase o se le asigna posición.
+        const p1Id = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
+        const p2Id = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
+        match.loser = match.winner === p1Id ? p2Id : p1Id;
     }
 
     // Re-render the specific card
@@ -866,7 +896,8 @@ function handleScoreChange(event) {
     
     if (match.winner !== null) {
         // Revert input value if trying to edit a finished match
-        input.value = (pKey === 'p1' ? match.scores[setIndex][0] : match.scores[setIndex][1]) || '';
+        const scorePosition = pKey === 'p1' ? 0 : 1;
+        input.value = (match.scores[setIndex][scorePosition] !== undefined && match.scores[setIndex][scorePosition] !== null) ? match.scores[setIndex][scorePosition] : '';
         showStatus("⚠️ Cannot change score for a completed match.", "orange");
         return;
     }
@@ -908,19 +939,34 @@ function checkSetWinner(setScore) {
 
     const diff = Math.abs(p1Games - p2Games);
 
-    // Rule 1: Win at max games or more with a 2-game lead (e.g., 6-4, 7-5, 8-6)
+    // Rule 1: Win at 'max' games with a 2-game lead (e.g., 6-4)
     if (p1Games >= max && diff >= 2) {
         return 'p1';
     } else if (p2Games >= max && diff >= 2) {
         return 'p2';
     } 
     
-    // Rule 2: Win at max-(max-1) (e.g., 6-5, requires winning at least 'max' games)
-    else if (p1Games === max && p2Games === max - 1) { 
+    // Rule 2: Score reaches max+1, but the difference is 1 (e.g., 7-6) - Only if max is reached.
+    // If scores are 6-5, 5-6, 7-6, 6-7, etc., it must continue until diff >= 2 OR a Tiebreak score.
+    
+    // Rule 3: Tiebreak (Assumed at max-1/max-1, resulting in max/max-1 or max-1/max)
+    // We assume the input records the final score. If p1Games or p2Games reaches max and the other is max-1.
+    // This handles the scenario where the tiebreak is implicitly won and the score is logged as 7-6 (if max=6).
+    if (max > 2) { // Only applies if max is reasonably large (e.g., 6)
+        if (p1Games === max + 1 && p2Games === max) { // Example 7-6 (P1 wins)
+             return 'p1';
+        } else if (p2Games === max + 1 && p1Games === max) { // Example 6-7 (P2 wins)
+             return 'p2';
+        }
+    }
+    
+    // Handles scores like 8-6, 9-7 where max is passed but diff is 2
+    if (p1Games > max && diff >= 2) {
         return 'p1';
-    } else if (p2Games === max && p1Games === max - 1) { 
+    } else if (p2Games > max && diff >= 2) {
         return 'p2';
     }
+    
     return null; // Set not finished
 }
 
@@ -1069,7 +1115,7 @@ function renderStandings(standingsArray) {
 
     // --- 1. Render Group Standings (if more than one group) ---
     if (totalGroups > 1) {
-        html += `<h3 class="text-xl font-bold text-gray-700 mb-4 mt-6 border-b pb-2">Clasificación por Grupos</h3>`;
+        html += `<h3 class="group-rankings-title">Clasificación por Grupos</h3>`;
         
         const standingsByGroup = standingsArray.reduce((acc, stat) => {
             acc[stat.group] = acc[stat.group] || [];
@@ -1091,7 +1137,7 @@ function renderStandings(standingsArray) {
     }
 
     // --- 2. Render Global Standings (Group Phase Only) ---
-    html += `<h3 class="text-xl font-bold text-gray-700 mb-4 ${totalGroups <= 1 ? '' : 'mt-6'} border-b pb-2">Clasificación Global (Fase de Grupos)</h3>`;
+    html += `<h3 class="group-rankings-title ${totalGroups <= 1 ? '' : 'mt-6'}">Clasificación Global (Fase de Grupos)</h3>`;
     html += createStandingsTable(standingsArray, true);
     
     return html;
@@ -1100,8 +1146,8 @@ function renderStandings(standingsArray) {
 // Helper function to create the actual HTML table structure
 function createStandingsTable(statsArray, isGlobal) {
     let html = `<div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+        <table class="ranking-table">
+            <thead>
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${isGlobal ? 'Global Rank' : 'Group Rank'}</th>
                     ${isGlobal ? `<th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Group</th>` : ''}
@@ -1112,7 +1158,7 @@ function createStandingsTable(statsArray, isGlobal) {
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">G Diff</th>
                 </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">`;
+            <tbody>`;
 
     statsArray.forEach((stat, index) => {
         html += `<tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
@@ -1132,7 +1178,7 @@ function createStandingsTable(statsArray, isGlobal) {
 
 function renderPlayoffs(playoffMatches) {
     let html = `<div class="mt-8">
-        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Fase Eliminatoria (Top 4)</h3>
+        <h3 class="playoffs-title">Fase Eliminatoria (Top 4)</h3>
         <p class="text-sm text-gray-600 mb-4">Los partidos son generados automáticamente en base a la Clasificación Global de la Fase de Grupos. **Esta fase requiere ganar 2 sets (Mejor de 3).**</p>
         <div id="playoff-match-list" class="space-y-4">`;
 
@@ -1163,9 +1209,9 @@ function renderFinalRankings(standings) {
     const remainingStandings = standings.filter(s => !top4Players.includes(s.player));
 
     let html = `<div class="mt-8 border-t pt-4">
-        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Clasificación Final del Torneo (1º a ${standings.length}º)</h3>
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+        <h3 class="final-ranking-title">Clasificación Final del Torneo (1º a ${standings.length}º)</h3>
+        <table class="ranking-table">
+            <thead>
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Pos.</th>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${mode === 'doubles' ? 'Team' : 'Player'}</th>
@@ -1173,7 +1219,7 @@ function renderFinalRankings(standings) {
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Result</th>
                 </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">`;
+            <tbody>`;
 
     [[1, rank1, '🏆 Champion'], [2, rank2, '🥈 Runner-Up'], [3, rank3, '🥉 3rd Place'], [4, rank4, '4th Place']]
     .forEach(([rank, player, result], index) => {
