@@ -92,22 +92,22 @@
           <p class="text-xs text-gray-600 mt-1">Total players must be divisible by this number.</p>
           <div id="set-group-message" class="text-sm mt-1"></div>
         </div>
-        
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-            <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
-                Max Games per Set (Pro Set) (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
-            </label>
-            <div class="mt-1 flex space-x-2">
-                <input type="number" id="max-games-set-input" value="6" min="4" step="2"
-                    class="flex-grow p-2 border border-indigo-300 rounded-lg">
-                <button type="button" id="btn-configurar-juegos"
-                    class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
-                    Set Games
-                </button>
-            </div>
-            <p class="text-xs text-gray-600 mt-1">Must be even (e.g., 4, 6, 8).</p>
-            <p id="set-games-message" class="text-sm mt-1"></p>
-        </div>
+        
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+            <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
+                Max Games per Set (Pro Set) (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
+            </label>
+            <div class="mt-1 flex space-x-2">
+                <input type="number" id="max-games-set-input" value="6" min="4" step="2"
+                    class="flex-grow p-2 border border-indigo-300 rounded-lg">
+                <button type="button" id="btn-configurar-juegos"
+                    class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+                    Set Games
+                </button>
+            </div>
+            <p class="text-xs text-gray-600 mt-1">Must be even (e.g., 4, 6, 8).</p>
+            <p id="set-games-message" class="text-sm mt-1"></p>
+        </div>
       </div>
 
       <div class="mt-4">
@@ -124,13 +124,21 @@
       <div class="grid md:grid-cols-3 gap-6">
         <div class="md:col-span-2">
           <label for="nombre-input" class="block text-sm font-medium text-gray-700">Player Name</label>
-          <div class="mt-1 flex space-x-2">
+          <div class="mt-1 mb-4">
             <input type="text" id="nombre-input" placeholder="e.g. Novak Djokovic"
-              class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+          </div>
+
+                    <label for="foto-input" class="block text-sm font-medium text-gray-700">Player Photo (Optional)</label>
+          <div class="mt-1 flex space-x-2">
+            <input type="file" id="foto-input" accept="image/*"
+              class="flex-grow p-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4
+              file:rounded-full file:border-0 file:text-sm file:font-semibold
+              file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
             <button id="btn-agregar-participante"
               class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">Add</button>
           </div>
-          <p class="text-sm text-gray-500 mt-2">
+                    <p class="text-sm text-gray-500 mt-2">
             <span id="contador-participantes" class="font-bold text-indigo-600">0</span> of
             <span id="max-participantes-display" class="font-bold text-indigo-600">10</span> players registered.
           </p>
