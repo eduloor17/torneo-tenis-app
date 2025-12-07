@@ -1,300 +1,212 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tennis Tournament Manager</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9;
-        }
-        .match-card {
-            margin-bottom: 1rem;
-        }
-        .match-card.completed {
-            border: 2px solid #10b981;
-            opacity: 0.9;
-        }
-        /* Estilos del modal para asegurar que se vea por encima de todo */
-        .modal-overlay {
-            background-color: rgba(0, 0, 0, 0.7);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tennis Tournament Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f4f7f9;
+    }
+    .match-card {
+      margin-bottom: 1rem;
+    }
+    .match-card.completed {
+      border: 2px solid #10b981;
+      opacity: 0.9;
+    }
+  </style>
 </head>
 <body>
-    <div id="registration-modal" class="fixed inset-0 z-50 hidden items-center justify-center modal-overlay">
-        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
-            <h3 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">Register New Player</h3>
-            
-            <div class="mb-4">
-                <label for="modal-nombre-input" class="block text-sm font-medium text-gray-700">Player Name</label>
-                <input type="text" id="modal-nombre-input" placeholder="e.g. Rafael Nadal"
-                    class="mt-1 w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
+  <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center">
+    <div class="text-center">
+      <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none"
+        viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+        </path>
+      </svg>
+      <p class="mt-3 text-lg font-semibold text-gray-700">Connecting to Cloud Tournament...</p>
+    </div>
+  </div>
 
-            <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <label for="modal-photo-input" class="block text-sm font-medium text-gray-700 mb-2">
-                    Player Photo (Upload or Take Photo)
-                </label>
-                <div class="flex items-center space-x-4">
-                    <img id="modal-photo-preview"
-                        class="h-16 w-16 rounded-full object-cover border-2 border-gray-300"
-                        src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236B7280'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>"
-                        alt="Player Photo Preview">
-                    
-                    <input type="file" id="modal-photo-input" accept="image/*" capture="user"
-                        class="text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                </div>
-            </div>
+  <div class="max-w-4xl mx-auto p-6">
+    <header class="bg-white p-6 rounded-2xl shadow mb-8">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+        <h1 class="text-3xl font-extrabold text-indigo-800">🎾 Tennis Tournament Manager</h1>
+        <div class="mt-3 md:mt-0 flex flex-col items-end">
+                    <div id="tournament-id-display" class="text-right"></div>
+          <button id="btn-borrar-datos"
+            class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
+            Reset Tournament (Start New)
+          </button>
+        </div>
+      </div>
 
-            <div class="flex justify-end space-x-3">
-                <button id="btn-cancelar-modal"
-                    class="px-4 py-2 text-sm font-semibold rounded-lg text-gray-600 hover:bg-gray-100 transition duration-150">
-                    Cancel
-                </button>
-                <button id="btn-confirmar-participante"
-                    class="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-green-500 hover:bg-green-600 transition duration-150">
-                    Register Player
+      <div class="mt-4 pt-4 border-t border-gray-100">
+                <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+          <input type="text" id="external-id-input" placeholder="Enter a tournament ID to load"
+            class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+          <button type="submit"
+            class="px-4 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600 transition duration-150">Load</button>
+        </form>
+        <p id="load-message" class="text-sm text-gray-500 mt-2"></p>
+      </div>
+    </header>
+
+    <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+          <label for="max-jugadores-input" class="block text-sm font-medium text-indigo-700">
+            Maximum Players (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
+          </label>
+          <div class="mt-1 flex space-x-2">
+            <input type="number" id="max-jugadores-input" min="4" step="2" value="10"
+              class="flex-grow p-2 border border-indigo-300 rounded-lg">
+            <button id="btn-configurar-max"
+              class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+              Set Max
+            </button>
+          </div>
+          <p class="text-xs text-gray-600 mt-1">Must be even (minimum 4).</p>
+          <div id="set-max-message" class="text-sm mt-1"></div>
+        </div>
+
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+          <label for="num-grupos-input" class="block text-sm font-medium text-indigo-700">
+            Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)
+          </label>
+          <div class="mt-1 flex space-x-2">
+            <input type="number" id="num-grupos-input" min="1" max="6" value="2"
+              class="flex-grow p-2 border border-indigo-300 rounded-lg">
+            <button id="btn-configurar-grupos"
+              class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+              Set Groups
+            </button>
+          </div>
+          <p class="text-xs text-gray-600 mt-1">Total players must be divisible by this number.</p>
+          <div id="set-group-message" class="text-sm mt-1"></div>
+        </div>
+        
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+            <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
+                Max Games per Set (Pro Set) (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
+            </label>
+            <div class="mt-1 flex space-x-2">
+                <input type="number" id="max-games-set-input" value="6" min="4" step="2"
+                    class="flex-grow p-2 border border-indigo-300 rounded-lg">
+                <button type="button" id="btn-configurar-juegos"
+                    class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+                    Set Games
                 </button>
             </div>
+            <p class="text-xs text-gray-600 mt-1">Must be even (e.g., 4, 6, 8).</p>
+            <p id="set-games-message" class="text-sm mt-1"></p>
         </div>
-    </div>
-    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center">
-        <div class="text-center">
-            <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none"
-                viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                </path>
-            </svg>
-            <p class="mt-3 text-lg font-semibold text-gray-700">Connecting to Cloud Tournament...</p>
-        </div>
-    </div>
+      </div>
 
-    <div class="max-w-4xl mx-auto p-6">
-        <header class="bg-white p-6 rounded-2xl shadow mb-8">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-                <h1 class="text-3xl font-extrabold text-indigo-800">🎾 Tennis Tournament Manager</h1>
-                <div class="mt-3 md:mt-0 flex flex-col items-end">
-                    <div id="tournament-id-display" class="text-right"></div>
-                    <button id="btn-borrar-datos"
-                        class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
-                        Reset Tournament (Start New)
-                    </button>
-                </div>
-            </div>
+      <div class="mt-4">
+        <label for="match-type" class="block text-sm font-medium text-gray-700">Match Type</label>
+        <select id="match-type" class="border rounded p-2 mt-1 w-full">
+          <option value="singles">Singles</option>
+          <option value="doubles">Doubles</option>
+        </select>
+      </div>
+    </section>
 
-            <div class="mt-4 pt-4 border-t border-gray-100">
-                <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                    <input type="text" id="external-id-input" placeholder="Enter a tournament ID to load"
-                        class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                    <button type="submit"
-                        class="px-4 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600 transition duration-150">Load</button>
-                </form>
-                <p id="load-message" class="text-sm text-gray-500 mt-2"></p>
-            </div>
-        </header>
+    <section class="bg-white p-6 rounded-2xl shadow mb-8">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Player Registration</h2>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="md:col-span-2">
+          <label for="nombre-input" class="block text-sm font-medium text-gray-700">Player Name</label>
+          <div class="mt-1 flex space-x-2">
+            <input type="text" id="nombre-input" placeholder="e.g. Novak Djokovic"
+              class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+            <button id="btn-agregar-participante"
+              class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">Add</button>
+          </div>
+          <p class="text-sm text-gray-500 mt-2">
+            <span id="contador-participantes" class="font-bold text-indigo-600">0</span> of
+            <span id="max-participantes-display" class="font-bold text-indigo-600">10</span> players registered.
+          </p>
+        </div>
+        <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">List (<span id="contador-participantes-list">0</span>)</h3>
+          <ul id="lista-participantes" class="list-disc list-inside space-y-1 text-sm text-gray-700"></ul>
+                </div>
+      </div>
 
-        <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
+      <div class="mt-6 border-t pt-4">
+        <button id="btn-generate-matches"
+          class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-indigo-600 hover:bg-indigo-700">
+          🎾 Generate Random Matches
+        </button>
+      </div>
 
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-                    <label for="max-jugadores-input" class="block text-sm font-medium text-indigo-700">
-                        Maximum Players (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
-                    </label>
-                    <div class="mt-1 flex space-x-2">
-                        <input type="number" id="max-jugadores-input" min="4" step="2" value="10"
-                            class="flex-grow p-2 border border-indigo-300 rounded-lg">
-                        <button id="btn-configurar-max"
-                            class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
-                            Set Max
-                        </button>
-                    </div>
-                    <p class="text-xs text-gray-600 mt-1">Must be even (minimum 4).</p>
-                    <div id="set-max-message" class="text-sm mt-1"></div>
-                </div>
+      <div id="matches-container" class="mt-4"></div>
+    </section>
+  </div>
 
-                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-                    <label for="num-grupos-input" class="block text-sm font-medium text-indigo-700">
-                        Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)
-                    </label>
-                    <div class="mt-1 flex space-x-2">
-                        <input type="number" id="num-grupos-input" min="1" max="6" value="2"
-                            class="flex-grow p-2 border border-indigo-300 rounded-lg">
-                        <button id="btn-configurar-grupos"
-                            class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
-                            Set Groups
-                        </button>
-                    </div>
-                    <p class="text-xs text-gray-600 mt-1">Total players must be divisible by this number.</p>
-                    <div id="set-group-message" class="text-sm mt-1"></div>
-                </div>
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    // Firestore imports needed for cross-device sync
+    import { getFirestore, setDoc, doc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-                    <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
-                        Max Games per Set (Pro Set) (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
-                    </label>
-                    <div class="mt-1 flex space-x-2">
-                        <input type="number" id="max-games-set-input" value="6" min="4" step="2"
-                            class="flex-grow p-2 border border-indigo-300 rounded-lg">
-                        <button type="button" id="btn-configurar-juegos"
-                            class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
-                            Set Games
-                        </button>
-                    </div>
-                    <p class="text-xs text-gray-600 mt-1">Must be even (e.g., 4, 6, 8).</p>
-                    <p id="set-games-message" class="text-sm mt-1"></p>
-                </div>
-            </div>
+    // *** YOUR FIREBASE CONFIGURATION IS INSERTED HERE ***
+    const firebaseConfig = {
+      apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA",
+      authDomain: "precisiontennisscores.firebaseapp.com",
+      projectId: "precisiontennisscores",
+      storageBucket: "precisiontennisscores.firebasestorage.app",
+      messagingSenderId: "847832314171",
+      appId: "1:847832314171:web:ce61405a155f67bf4ac71e",
+      measurementId: "G-C842BQXWXN"
+    };
+    
+    window.db = null;
+    window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
+    window.isCloudMode = false;
 
-            <div class="mt-4">
-                <label for="match-type" class="block text-sm font-medium text-gray-700">Match Type</label>
-                <select id="match-type" class="border rounded p-2 mt-1 w-full">
-                    <option value="singles">Singles</option>
-                    <option value="doubles">Doubles</option>
-                </select>
-            </div>
-        </section>
+    const loadingOverlay = document.getElementById('loading-overlay');
+    loadingOverlay.style.display = 'flex'; // Show loading screen while connecting
 
-        <section class="bg-white p-6 rounded-2xl shadow mb-8">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Player Registration</h2>
-            <div class="grid md:grid-cols-3 gap-6">
-                <div class="md:col-span-2">
-                    <label for="nombre-input-display" class="block text-sm font-medium text-gray-700">Register Player</label>
-                    <div class="mt-1 flex space-x-2">
-                        <input type="text" id="nombre-input-display" placeholder="Click 'Register' below" disabled
-                            class="flex-grow p-2 border border-gray-300 bg-gray-100 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-                            
-                        <button id="btn-open-modal"
-                            class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">Register</button>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">
-                        <span id="contador-participantes" class="font-bold text-indigo-600">0</span> of
-                        <span id="max-participantes-display" class="font-bold text-indigo-600">10</span> players registered.
-                    </p>
-                </div>
-                <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">List (<span id="contador-participantes-list">0</span>)</h3>
-                    <ul id="lista-participantes" class="list-disc list-inside space-y-1 text-sm text-gray-700"></ul>
-                </div>
-            </div>
+    if (Object.keys(firebaseConfig).length > 0) {
+      window.app = initializeApp(firebaseConfig);
+      window.db = getFirestore(window.app);
+      window.auth = getAuth(window.app);
+      window.isCloudMode = true;
 
-            <div class="mt-6 border-t pt-4">
-                <button id="btn-generate-matches"
-                    class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-indigo-600 hover:bg-indigo-700">
-                    🎾 Generate Random Matches
-                </button>
-            </div>
+      onAuthStateChanged(window.auth, async (user) => {
+        if (!user) await signInAnonymously(window.auth);
+        
+        // If no tournament ID is stored, use the Firebase Auth UID as the new ID
+        if (!localStorage.getItem("current-tournament-id")) {
+             window.userId = window.auth.currentUser.uid;
+        }
 
-            <div id="matches-container" class="mt-4"></div>
-        </section>
-    </div>
+        // Re-call loadAndInitializeLogic after Firebase setup completes
+        if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
+        loadingOverlay.style.display = 'none';
+      });
+    } else {
+      console.warn("⚠️ No Firebase config — running in local mode. Data will NOT sync.");
+      // In local mode, we still call the logic, but it uses localStorage
+      if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
+      loadingOverlay.style.display = 'none';
+    }
+    
+    // Make sure Firestore functions are globally available for my-app-logic.js
+    window.setDoc = setDoc;
+    window.doc = doc;
+    window.getDoc = getDoc;
+  </script>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setDoc, doc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // *** YOUR FIREBASE CONFIGURATION IS INSERTED HERE ***
-        const firebaseConfig = {
-            apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA",
-            authDomain: "precisiontennisscores.firebaseapp.com",
-            projectId: "precisiontennisscores",
-            storageBucket: "precisiontennisscores.firebasestorage.app",
-            messagingSenderId: "847832314171",
-            appId: "1:847832314171:web:ce61405a155f67bf4ac71e",
-            measurementId: "G-C842BQXWXN"
-        };
-        
-        window.db = null;
-        window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
-        window.isCloudMode = false;
-
-        const loadingOverlay = document.getElementById('loading-overlay');
-        loadingOverlay.style.display = 'flex'; 
-
-        if (Object.keys(firebaseConfig).length > 0) {
-            window.app = initializeApp(firebaseConfig);
-            window.db = getFirestore(window.app);
-            window.auth = getAuth(window.app);
-            window.isCloudMode = true;
-
-            onAuthStateChanged(window.auth, async (user) => {
-                if (!user) await signInAnonymously(window.auth);
-                
-                if (!localStorage.getItem("current-tournament-id")) {
-                    window.userId = window.auth.currentUser.uid;
-                }
-
-                if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
-                loadingOverlay.style.display = 'none';
-            });
-        } else {
-            console.warn("⚠️ No Firebase config — running in local mode. Data will NOT sync.");
-            if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
-            loadingOverlay.style.display = 'none';
-        }
-        
-        // Exponer funciones de Firestore
-        window.setDoc = setDoc;
-        window.doc = doc;
-        window.getDoc = getDoc;
-    </script>
-    
-    <script type="module" src="./my-app-logic.js"></script>
-
-    <script>
-        const modal = document.getElementById('registration-modal');
-        const btnOpenModal = document.getElementById('btn-open-modal');
-        const btnCancel = document.getElementById('btn-cancelar-modal');
-        const photoInput = document.getElementById('modal-photo-input');
-        const photoPreview = document.getElementById('modal-photo-preview');
-        // NOTA: btn-confirmar-participante DEBE ser manejado en my-app-logic.js
-
-        // Función para abrir el modal
-        btnOpenModal.addEventListener('click', () => {
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        });
-
-        // Función para cerrar el modal
-        function closeModal() {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            // Opcional: limpiar los campos del modal al cerrar
-            document.getElementById('modal-nombre-input').value = '';
-            photoInput.value = ''; // Limpiar el input de archivo
-            photoPreview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236B7280'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
-        }
-
-        btnCancel.addEventListener('click', closeModal);
-        // También cerramos el modal si se hace clic fuera de él
-        modal.addEventListener('click', (e) => {
-            if (e.target.id === 'registration-modal') {
-                closeModal();
-            }
-        });
-
-        // Vista previa de la foto
-        photoInput.addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    photoPreview.src = e.target.result;
-                }
-                reader.readAsDataURL(file);
-            } else {
-                photoPreview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236B7280'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
-            }
-        });
-
-        // Exportar la función para que my-app-logic.js pueda usarla
-        window.closeRegistrationModal = closeModal;
-    </script>
+    <script type="module" src="./my-app-logic.js"></script>
 </body>
 </html>
