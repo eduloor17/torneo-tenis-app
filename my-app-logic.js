@@ -291,7 +291,7 @@ async function loadData(loadFromCloud = false) {
         return dataMatches.map(m => {
             m.scores = m.scores.map(setScoreString => {
                 const parts = setScoreString.split('-');
-                // Convert to number or undefined/null if empty string
+                // Convert to number or undefined if empty string
                 const p1Games = parts[0] !== '' ? parseInt(parts[0]) : undefined;
                 const p2Games = parts[1] !== '' ? parseInt(parts[1]) : undefined;
                 return [p1Games, p2Games];
@@ -470,6 +470,7 @@ function generatePlayoffMatches(standings) {
     
     // Establecer a 2 sets para ganar en la fase eliminatoria (Mejor de 3)
     setsToWinMatch = 2; 
+    saveData(false); // Update local setting
 
     const player1st = top4[0];
     const player2nd = top4[1];
@@ -709,6 +710,12 @@ function handleAddSet(event) {
         match = playoffMatches.find(m => m.id === matchId);
     }
     if (!match) return;
+    
+    // Check if the match is already completed before adding a set
+    if (match.winner !== null) {
+        showStatus("⚠️ Cannot add a set to a completed match.", "orange");
+        return;
+    }
 
     // Add a new set slot
     match.scores.push([undefined, undefined]);
@@ -730,8 +737,8 @@ function handleScoreChange(event) {
 
     // Find the match
     let match = matches.find(m => m.id === matchId);
-    const isPlayoff = !match;
-    if (isPlayoff) {
+    const isGroupMatch = !!match; // Check if match was found in group matches
+    if (!match) {
         match = playoffMatches.find(m => m.id === matchId);
     }
     if (!match) return;
@@ -751,7 +758,7 @@ function handleScoreChange(event) {
     match.winner = matchResult.winner;
 
     // If winner found, set loser for playoffs
-    if (match.winner && isPlayoff) {
+    if (match.winner && !isGroupMatch) {
         match.loser = match.winner === match.p1 ? match.p2 : match.p1;
     }
 
@@ -764,12 +771,9 @@ function handleScoreChange(event) {
         showStatus(`📝 Score updated. Current sets: ${getSetsScoreString(match)}`, "indigo");
     }
 
-    // Full render only if this was a group match and we need to check for playoffs
-    if (!isPlayoff) {
+    // Full render if a match completed, to update standings and check for playoffs
+    if (match.winner) {
         renderMatches(); 
-    } else {
-        // Update standings for final rankings if it was a playoff match
-         renderMatches();
     }
     
     saveData(true);
@@ -792,7 +796,7 @@ function reRenderMatchCard(match) {
 
 // Logic to determine the set winner based on Pro Set rules
 function checkSetWinner(setScore) {
-    const max = maxGamesPerSet;
+    const max = maxGamesPerSet; // Max games configured by user (default 6)
     const p1Games = setScore[0];
     const p2Games = setScore[1];
     
@@ -801,18 +805,17 @@ function checkSetWinner(setScore) {
 
     const diff = Math.abs(p1Games - p2Games);
 
-    // Rule 1: Win at max games with a 2-game lead (e.g., 6-4)
+    // Rule 1: Win at max games or more with a 2-game lead (e.g., 6-4, 7-5, 8-6)
     if (p1Games >= max && diff >= 2) {
         return 'p1';
     } else if (p2Games >= max && diff >= 2) {
         return 'p2';
     } 
     
-    // Rule 2: Win at max-(max-1) (e.g., 6-5 after a tiebreak for a 6-game set, or 8-7 for an 8-game set)
-    // This typically signifies a tiebreak win in a short set format.
-    else if (p1Games === max && p2Games === max - 1) {
+    // Rule 2: Win at max-(max-1) (e.g., 6-5, requires winning at least 'max' games)
+    else if (p1Games === max && p2Games === max - 1) { 
         return 'p1';
-    } else if (p2Games === max && p1Games === max - 1) {
+    } else if (p2Games === max && p1Games === max - 1) { 
         return 'p2';
     }
     return null; // Set not finished
@@ -824,9 +827,11 @@ function checkMatchWinner(match) {
     let p1SetWins = 0;
     let p2SetWins = 0;
     
-    // Determinar el umbral de sets a ganar: 1 para grupos, 2 para playoffs.
-    // Usamos el 'group' para diferenciar (Playoff matches do not have a 'group' property)
-    const threshold = match.group ? 1 : 2; 
+    // Determinar el umbral de sets a ganar: 
+    // Si tiene 'group' (Fase de Grupos), el umbral es 1.
+    // Si no tiene 'group' (Fase Eliminatoria, tiene 'stage'), el umbral es 2.
+    const isGroupMatch = match.group !== undefined && match.stage === undefined;
+    const threshold = isGroupMatch ? 1 : 2; 
 
     // Check set results
     match.scores.forEach(set => {
