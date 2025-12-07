@@ -30,6 +30,7 @@ section {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* --- ESTILOS GENERALES DE BOTONES --- */
 button {
     padding: 10px 15px;
     background-color: #007bff;
@@ -45,7 +46,7 @@ button:hover:not(:disabled) {
     background-color: #0056b3;
 }
 
-.danger-btn { /* Estilo para el botón de borrar */
+.danger-btn { 
     background-color: #dc3545;
 }
 
@@ -56,14 +57,16 @@ button:hover:not(:disabled) {
 button:disabled {
     background-color: #ccc;
     cursor: not-allowed;
+    opacity: 0.6; /* Hago la opacidad más visible para deshabilitado */
 }
 
-input[type="text"], input[type="number"] {
+input[type="text"], input[type="number"], select { /* Agrego 'select' si lo usas */
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 5px;
 }
 
+/* --- ESTILOS ESPECÍFICOS DE LISTAS Y GRUPOS --- */
 #lista-participantes {
     list-style: none;
     padding: 0;
@@ -90,23 +93,104 @@ input[type="text"], input[type="number"] {
     border-radius: 5px;
 }
 
-.ranking-table, #playoffs table {
+
+/* --- ESTILOS DE LA TABLA DE PARTIDOS Y STANDINGS --- */
+.match-card {
+    /* Estilo básico de la tarjeta de partido */
+    border: 1px solid #ddd;
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.match-card.completed {
+    /* Resaltado visual para partidos terminados */
+    border: 3px solid #28a745; /* Borde verde */
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
+}
+
+.ranking-table, #playoffs table, .match-card table { /* Aplica a todas las tablas de resultados */
     width: 100%;
     border-collapse: collapse;
     margin-top: 10px;
 }
 
-.ranking-table th, .ranking-table td, #playoffs th, #playoffs td {
+.ranking-table th, .ranking-table td, #playoffs th, #playoffs td, .match-card th, .match-card td {
     border: 1px solid #ddd;
     padding: 8px;
     text-align: left;
+    font-size: 14px; /* Ajuste para espacio */
 }
 
-.ranking-table th {
+.ranking-table th, .match-card th {
     background-color: #f2f2f2;
 }
 
-#rankings-container {
+
+/* --- ESTILOS DE INPUTS DE SCORE Y BOTONES RÁPIDOS (CLAVE) --- */
+
+.set-score-input {
+    width: 50px; /* Tamaño del input de juegos */
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 14px;
+}
+
+/* Contenedor del input + botón rápido para el set activo */
+.match-card td > div.flex {
     display: flex;
-    gap: 20px;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px; /* space-y-1 en Tailwind */
+}
+
+.btn-quick-set-win {
+    /* Estilo del botón de Quick Win */
+    background-color: #28a745; /* Verde */
+    color: white;
+    padding: 2px 4px;
+    font-size: 10px; /* Texto más pequeño */
+    border-radius: 3px;
+    width: 100%; /* Ocupa el ancho disponible */
+    margin-left: 0; /* Anula el margin-left del botón general */
+}
+
+.btn-quick-set-win:hover:not(:disabled) {
+    background-color: #1e7e34;
+}
+
+.btn-add-set {
+    /* Estilo del botón de añadir set (ej. Tailwind bg-indigo-500) */
+    background-color: #6610f2;
+    padding: 5px 10px;
+    font-size: 12px;
+    margin-left: 0;
+}
+
+.btn-add-set:hover:not(:disabled) {
+    background-color: #5107d3;
+}
+
+/* Clase de color que usa el JS */
+.text-indigo-600 {
+    color: #6610f2;
+}
+.text-green-700 {
+    color: #1e7e34;
+}
+.text-gray-500 {
+    color: #6c757d;
+}
+
+/* Flex para la fila de botones/estado */
+.match-card .mt-3.flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 5px;
+    border-top: 1px solid #eee;
 }
