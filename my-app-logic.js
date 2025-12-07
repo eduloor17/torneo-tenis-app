@@ -1,1179 +1,1055 @@
 // my-app-logic.js
-// Tennis Tournament Manager — Logic Layer (Sets Variables y Registro por Set/Juego)
+// Script para gestionar un torneo de tenis/pádel (Grupos y Eliminatorias)
 
-// Global state
+// --- 1. CONFIGURACIÓN INICIAL ---
 let players = [];
-let maxPlayers = 10;
-let numGroups = 2;
-let mode = "singles"; // or "doubles"
-let maxGamesPerSet = 6; // Máximo de juegos por set por defecto es 6 (Pro Set)
-let setsToWinMatch = 1; // Por defecto: 1 set para ganar (para la fase de grupos Pro Set)
 let matches = [];
-let playoffMatches = []; 
+let playoffMatches = [];
+let maxSetsToWin = 2; // Por ejemplo, ganar 2 sets de 3.
+let maxGamesPerSet = 6; // Por ejemplo, sets de 6 juegos (con desempate si es 6-6)
 
-// ---------------------------
-// FOTO UTILITIES
-// ---------------------------
+// El estado del torneo determina qué fase renderizar
+let currentStage = 'group'; // 'group' o 'playoff'
+let currentStep = 'groups'; // 'groups' o 'finalStandings'
+
+// IDs de los contenedores
+const matchesContainer = document.getElementById('matches-container');
+const standingsContainer = document.getElementById('standings-container');
+const playoffContainer = document.getElementById('playoff-container');
+const statusMessage = document.getElementById('status-message');
+const playerInput = document.getElementById('player-name-input');
+
+// --- 2. GESTIÓN DE DATOS Y ESTADO ---
 
 /**
- * Reads a File object and converts it into a Base64 Data URL string.
- * @param {File} file
- * @returns {Promise<string|null>} The Data URL or null if an error occurs.
+ * Carga los datos guardados o inicializa los datos por defecto.
  */
-function readImageAsDataURL(file) {
-    return new Promise((resolve) => {
-        if (!file) return resolve(null);
+function loadData() {
+    const savedPlayers = localStorage.getItem('tournamentPlayers');
+    const savedMatches = localStorage.getItem('tournamentMatches');
+    const savedPlayoffMatches = localStorage.getItem('tournamentPlayoffMatches');
+    const savedStage = localStorage.getItem('currentStage');
+    const savedStep = localStorage.getItem('currentStep');
+    const savedMaxSets = localStorage.getItem('maxSetsToWin');
+    const savedMaxGames = localStorage.getItem('maxGamesPerSet');
+
+    if (savedPlayers && savedMatches) {
+        players = JSON.parse(savedPlayers);
+        matches = JSON.parse(savedMatches);
+        playoffMatches = savedPlayoffMatches ? JSON.parse(savedPlayoffMatches) : [];
+        currentStage = savedStage || 'group';
+        currentStep = savedStep || 'groups';
+        maxSetsToWin = parseInt(savedMaxSets) || 2;
+        maxGamesPerSet = parseInt(savedMaxGames) || 6;
+
+        // Asegurarse de que los nombres de los jugadores en los partidos sean string
+        // Esto previene errores si se guardan como objetos en alguna versión antigua.
+        matches.forEach(m => {
+            if (m.p1 && typeof m.p1 === 'object' && m.p1.name) m.p1 = m.p1.name;
+            if (m.p2 && typeof m.p2 === 'object' && m.p2.name) m.p2 = m.p2.name;
+        });
         
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = () => {
-            console.error("Error reading file:", file);
-            resolve(null);
-        };
-        reader.readAsDataURL(file);
+    } else {
+        // Datos de ejemplo
+        players = [
+            { id: 'p1', name: 'Rafa Nadal', group: 'A', photoURL: 'https://i.ibb.co/6P0jL6y/rafa.jpg' },
+            { id: 'p2', name: 'Roger Federer', group: 'A', photoURL: 'https://i.ibb.co/wJ10L3b/roger.jpg' },
+            { id: 'p3', name: 'Novak Djokovic', group: 'B', photoURL: 'https://i.ibb.co/Xz9tG9q/novak.jpg' },
+            { id: 'p4', name: 'Andy Murray', group: 'B', photoURL: 'https://i.ibb.co/5cQG9rS/andy.jpg' },
+            { id: 'p5', name: 'Daniil Medvedev', group: 'C' },
+            { id: 'p6', name: 'Alexander Zverev', group: 'C' },
+        ];
+        generateMatches();
+        showStatus("Tournament initialized with example data.", "blue");
+    }
+}
+
+/**
+ * Guarda el estado actual del torneo en el almacenamiento local.
+ * @param {boolean} silent Si es true, no muestra el mensaje de estado.
+ */
+function saveData(silent = false) {
+    localStorage.setItem('tournamentPlayers', JSON.stringify(players));
+    localStorage.setItem('tournamentMatches', JSON.stringify(matches));
+    localStorage.setItem('tournamentPlayoffMatches', JSON.stringify(playoffMatches));
+    localStorage.setItem('currentStage', currentStage);
+    localStorage.setItem('currentStep', currentStep);
+    localStorage.setItem('maxSetsToWin', maxSetsToWin.toString());
+    localStorage.setItem('maxGamesPerSet', maxGamesPerSet.toString());
+    if (!silent) {
+        showStatus("Data saved successfully.", "green");
+    }
+}
+
+/**
+ * Muestra un mensaje temporal de estado.
+ * @param {string} message El mensaje a mostrar.
+ * @param {string} type El tipo de mensaje (ej: 'green', 'red', 'blue', 'indigo', 'orange').
+ */
+function showStatus(message, type) {
+    const classMap = {
+        'green': 'bg-green-100 border-green-400 text-green-700',
+        'red': 'bg-red-100 border-red-400 text-red-700',
+        'blue': 'bg-blue-100 border-blue-400 text-blue-700',
+        'indigo': 'bg-indigo-100 border-indigo-400 text-indigo-700',
+        'orange': 'bg-orange-100 border-orange-400 text-orange-700',
+    };
+    
+    statusMessage.textContent = message;
+    statusMessage.className = `p-3 rounded-lg border-l-4 font-medium transition duration-300 ${classMap[type]}`;
+    statusMessage.style.opacity = '1';
+
+    setTimeout(() => {
+        statusMessage.style.opacity = '0';
+    }, 3000);
+}
+
+// --- 3. LÓGICA DEL TORNEO ---
+
+/**
+ * Genera el enfrentamiento de todos contra todos dentro de cada grupo.
+ */
+function generateMatches() {
+    matches = [];
+    const groups = {};
+    players.forEach(p => {
+        if (!groups[p.group]) {
+            groups[p.group] = [];
+        }
+        groups[p.group].push(p.name);
+    });
+
+    Object.keys(groups).forEach(groupKey => {
+        const groupPlayers = groups[groupKey];
+        for (let i = 0; i < groupPlayers.length; i++) {
+            for (let j = i + 1; j < groupPlayers.length; j++) {
+                const matchId = `M${matches.length + 1}-G${groupKey}`;
+                matches.push({
+                    id: matchId,
+                    group: groupKey,
+                    p1: groupPlayers[i],
+                    p2: groupPlayers[j],
+                    scores: [[undefined, undefined]], // Inicializa con un set
+                    winner: null,
+                });
+            }
+        }
     });
 }
 
 /**
- * Busca la información de la foto para un nombre de jugador/equipo dado.
- * @param {string|string[]} competitor - Nombre del jugador o array de nombres de equipo.
- * @returns {{ name: string, photoURL: string|null, isTeam: boolean }}
+ * Calcula el ganador del partido basado en los sets ganados.
+ * @param {object} match El objeto partido.
+ * @returns {object} {winner: string|null, p1Sets: number, p2Sets: number}
  */
-function getPlayerDisplayInfo(competitor) {
-    const isTeam = competitor.constructor === Array;
-    const name = isTeam ? competitor.join(' / ') : competitor;
+function checkMatchWinner(match) {
+    let p1Sets = 0;
+    let p2Sets = 0;
+    let p1GamesWon = 0;
+    let p2GamesWon = 0;
+    let allScoresValid = true;
 
-    if (isTeam) {
-        // Para dobles: encuentra la foto del primer miembro si está disponible
-        const teamMember = competitor[0];
-        const playerObj = players.find(p => p.name === teamMember);
+    match.scores.forEach(([score1, score2]) => {
+        const g1 = score1 !== undefined ? score1 : null;
+        const g2 = score2 !== undefined ? score2 : null;
         
-        // El photoURL será el del primer miembro, o null
-        const teamPhotoURL = playerObj ? playerObj.photoURL : null;
+        if (g1 === null || g2 === null) {
+            allScoresValid = false;
+        }
 
-        return {
-            name: name,
-            photoURL: teamPhotoURL,
-            isTeam: true,
+        if (g1 !== null && g2 !== null) {
+            p1GamesWon += g1;
+            p2GamesWon += g2;
+
+            const gamesDiff = Math.abs(g1 - g2);
+
+            // Regla de victoria del set: 
+            // Debe alcanzar al menos `maxGamesPerSet` (ej: 6) Y tener una diferencia de al menos 2.
+            // O, si es un tie-break (7-6), se gana con 7.
+            const isSetCompleted = (g1 >= maxGamesPerSet || g2 >= maxGamesPerSet) && gamesDiff >= 2 || (g1 === maxGamesPerSet + 1 && g2 === maxGamesPerSet) || (g2 === maxGamesPerSet + 1 && g1 === maxGamesPerSet);
+            
+            if (isSetCompleted) {
+                if (g1 > g2) {
+                    p1Sets++;
+                } else if (g2 > g1) {
+                    p2Sets++;
+                }
+            }
+        }
+    });
+
+    let winner = null;
+    const setsNeededToWin = maxSetsToWin;
+
+    if (p1Sets >= setsNeededToWin) {
+        winner = match.p1;
+    } else if (p2Sets >= setsNeededToWin) {
+        winner = match.p2;
+    }
+
+    return { winner, p1Sets, p2Sets, p1GamesWon, p2GamesWon };
+}
+
+/**
+ * Genera la estructura de la fase eliminatoria (cuartos, semis, final).
+ */
+function generatePlayoffStructure(standings) {
+    // Tomar los 8 mejores o los 4 mejores si hay menos grupos/jugadores.
+    // Ejemplo: 2 mejores de cada grupo A, B, C (si hubiera 3 grupos)
+    // Para 2 grupos (A y B) y 6 jugadores, tomamos 2 de cada uno y llenamos con los mejores terceros.
+    
+    // Simplificado: Tomar los 8 mejores clasificados
+    const topPlayers = standings.sort((a, b) => b.points - a.points || (b.gamesWon - b.gamesLost) - (a.gamesWon - a.gamesLost)).slice(0, 8);
+    
+    // Si hay menos de 8 jugadores, ajusta la estructura.
+    if (topPlayers.length < 4) {
+        showStatus("Not enough players for playoffs (min 4 recommended).", "orange");
+        return;
+    }
+
+    playoffMatches = [];
+    
+    // Cuartos de Final (QF) - Solo si hay 8 jugadores
+    if (topPlayers.length === 8) {
+        playoffMatches.push(
+            // QF1
+            { id: 'QF1', stage: 'Quarter Final 1', p1: topPlayers[0].name, p2: topPlayers[7].name, scores: [[undefined, undefined]], winner: null }, 
+            // QF2
+            { id: 'QF2', stage: 'Quarter Final 2', p1: topPlayers[3].name, p2: topPlayers[4].name, scores: [[undefined, undefined]], winner: null }, 
+            // QF3
+            { id: 'QF3', stage: 'Quarter Final 3', p1: topPlayers[2].name, p2: topPlayers[5].name, scores: [[undefined, undefined]], winner: null }, 
+            // QF4
+            { id: 'QF4', stage: 'Quarter Final 4', p1: topPlayers[1].name, p2: topPlayers[6].name, scores: [[undefined, undefined]], winner: null }
+        );
+    }
+    
+    // Semifinales (SF) - 4 jugadores (ganadores de QF o top 4 si no hay QF)
+    let p1SF1 = topPlayers.length === 8 ? 'Winner QF1' : topPlayers[0].name;
+    let p2SF1 = topPlayers.length === 8 ? 'Winner QF2' : topPlayers[3].name;
+    let p1SF2 = topPlayers.length === 8 ? 'Winner QF3' : topPlayers[1].name;
+    let p2SF2 = topPlayers.length === 8 ? 'Winner QF4' : topPlayers[2].name;
+
+    playoffMatches.push(
+        // SF1
+        { id: 'SF1', stage: 'Semi Final 1', p1: p1SF1, p2: p2SF1, scores: [[undefined, undefined]], winner: null, loser: null }, 
+        // SF2
+        { id: 'SF2', stage: 'Semi Final 2', p1: p1SF2, p2: p2SF2, scores: [[undefined, undefined]], winner: null, loser: null }
+    );
+
+    // Final
+    playoffMatches.push(
+        // Final
+        { id: 'FINAL', stage: 'Final', p1: 'Winner SF1', p2: 'Winner SF2', scores: [[undefined, undefined]], winner: null, loser: null }
+    );
+    
+    // Cambiar a la etapa de playoffs
+    currentStage = 'playoff';
+    currentStep = 'playoff';
+    saveData(true);
+    showStatus("Playoff structure generated and saved.", "blue");
+}
+
+
+/**
+ * Actualiza los nombres de los jugadores en la siguiente fase eliminatoria.
+ * @param {object} currentMatch El partido que acaba de terminar.
+ */
+function updateNextPlayoffMatch(currentMatch) {
+    const winnerName = currentMatch.winner;
+    const loserName = currentMatch.loser;
+    let winnerPlaceholder = '';
+    let loserPlaceholder = '';
+
+    if (currentMatch.id.startsWith('QF')) {
+        winnerPlaceholder = `Winner ${currentMatch.id}`;
+        loserPlaceholder = `Loser ${currentMatch.id}`;
+    } else if (currentMatch.id.startsWith('SF')) {
+        winnerPlaceholder = `Winner ${currentMatch.id}`;
+        loserPlaceholder = `Loser ${currentMatch.id}`;
+    }
+
+    // Busca los partidos donde el placeholder del ganador deba ser reemplazado
+    playoffMatches.forEach(nextMatch => {
+        if (nextMatch.p1 === winnerPlaceholder) {
+            nextMatch.p1 = winnerName;
+        }
+        if (nextMatch.p2 === winnerPlaceholder) {
+            nextMatch.p2 = winnerName;
+        }
+        // Para el partido por el 3er lugar (opcional, no implementado aquí)
+        // if (nextMatch.p1 === loserPlaceholder) {
+        //     nextMatch.p1 = loserName;
+        // }
+        // if (nextMatch.p2 === loserPlaceholder) {
+        //     nextMatch.p2 = loserName;
+        // }
+    });
+}
+
+// --- 4. CÁLCULO DE POSICIONES (STANDINGS) ---
+
+/**
+ * Calcula las posiciones y estadísticas de los jugadores en la fase de grupos.
+ * @returns {Array} Lista de objetos de posiciones.
+ */
+function calculateStandings() {
+    const playerStats = {};
+
+    // Inicializar estadísticas de los jugadores
+    players.forEach(p => {
+        playerStats[p.name] = {
+            name: p.name,
+            group: p.group,
+            matchesPlayed: 0,
+            matchesWon: 0,
+            matchesLost: 0,
+            setsWon: 0,
+            setsLost: 0,
+            gamesWon: 0,
+            gamesLost: 0,
+            points: 0, // 3 por victoria, 1 por sets perdidos (opcional, aquí 3 por W, 0 por L)
         };
-    } else {
-        // Para singles: encuentra la foto del jugador
-        const playerObj = players.find(p => p.name === competitor);
-        return {
-            name: name,
-            photoURL: playerObj ? playerObj.photoURL : null,
-            isTeam: false,
-        };
+    });
+
+    // Procesar resultados de los partidos de grupo
+    matches.forEach(match => {
+        const p1Name = match.p1;
+        const p2Name = match.p2;
+
+        const result = checkMatchWinner(match);
+        const p1Sets = result.p1Sets;
+        const p2Sets = result.p2Sets;
+        const p1GamesWon = result.p1GamesWon;
+        const p2GamesWon = result.p2GamesWon;
+
+        // Si el partido está completo
+        if (match.winner !== null) {
+            // Stats para P1
+            playerStats[p1Name].matchesPlayed++;
+            playerStats[p1Name].setsWon += p1Sets;
+            playerStats[p1Name].setsLost += p2Sets;
+            playerStats[p1Name].gamesWon += p1GamesWon;
+            playerStats[p1Name].gamesLost += p2GamesWon;
+            
+            // Stats para P2
+            playerStats[p2Name].matchesPlayed++;
+            playerStats[p2Name].setsWon += p2Sets;
+            playerStats[p2Name].setsLost += p1Sets;
+            playerStats[p2Name].gamesWon += p2GamesWon;
+            playerStats[p2Name].gamesLost += p1GamesWon;
+
+            // Puntos
+            if (match.winner === p1Name) {
+                playerStats[p1Name].matchesWon++;
+                playerStats[p2Name].matchesLost++;
+                playerStats[p1Name].points += 3; // 3 puntos por victoria
+            } else if (match.winner === p2Name) {
+                playerStats[p2Name].matchesWon++;
+                playerStats[p1Name].matchesLost++;
+                playerStats[p2Name].points += 3;
+            }
+        }
+    });
+
+    // Ordenar posiciones: 1. Puntos, 2. Diferencia de sets (SW - SL), 3. Diferencia de juegos (GW - GL)
+    const standingsArray = Object.values(playerStats);
+    standingsArray.sort((a, b) => {
+        // 1. Puntos
+        if (b.points !== a.points) return b.points - a.points;
+        
+        // 2. Diferencia de Sets
+        const aSetDiff = a.setsWon - a.setsLost;
+        const bSetDiff = b.setsWon - b.setsLost;
+        if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
+
+        // 3. Diferencia de Juegos
+        const aGameDiff = a.gamesWon - a.gamesLost;
+        const bGameDiff = b.gamesWon - b.gamesLost;
+        return bGameDiff - aGameDiff;
+    });
+
+    return standingsArray;
+}
+
+
+// --- 5. RENDERIZADO Y UI ---
+
+/**
+ * Obtiene la información de display (nombre y foto) para un jugador o equipo.
+ */
+function getPlayerDisplayInfo(p) {
+    const pName = typeof p === 'string' ? p : p.name;
+    const player = players.find(pl => pl.name === pName);
+
+    if (player) {
+        return { name: player.name, photoURL: player.photoURL };
+    }
+    // Para placeholders de playoffs
+    return { name: pName, photoURL: null };
+}
+
+/**
+ * Renders a generic match card (Set/Game Inputs)
+ * @param {object} match El objeto partido.
+ * @returns {string} HTML de la tarjeta.
+ */
+function renderMatchCard(match) {
+    const isCompleted = match.winner !== null;
+    
+    // Obtener información del jugador/equipo incluyendo foto
+    const p1Info = getPlayerDisplayInfo(match.p1);
+    const p2Info = getPlayerDisplayInfo(match.p2);
+    
+    const p1Name = p1Info.name;
+    const p2Name = p2Info.name;
+    
+    // Helper para generar el avatar
+    const getAvatarHtml = (info) => {
+        if (info.photoURL) {
+            return `<img src="${info.photoURL}" alt="${info.name}" class="w-8 h-8 rounded-full object-cover mr-2 inline-block shadow">`;
+        }
+        // Evita mostrar iniciales para placeholders de playoffs
+        if (info.name.startsWith('Winner') || info.name.startsWith('Loser')) {
+             return `<span class="mr-2 inline-block"></span>`;
+        }
+        const initial = info.name.charAt(0).toUpperCase();
+        return `<div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold text-gray-700 mr-2 inline-block">${initial}</div>`;
+    };
+    
+    const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
+    
+    const isPlayoff = match.stage;
+    const stageInfo = isPlayoff ? match.stage : `Group ${match.group}`;
+    const inputClass = isPlayoff ? 'playoff-set-input' : 'group-set-input';
+
+    let cardHtml = `
+        <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200" id="match-card-${match.id}">
+            <p class="text-lg font-bold text-gray-900 mb-2 flex items-center">
+                ${stageInfo}: ${getAvatarHtml(p1Info)} ${p1Name} vs ${getAvatarHtml(p2Info)} ${p2Name}
+            </p>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Team/Player</th>
+                            ${match.scores.map((_, index) => 
+                                `<th class="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase">Set ${index + 1}</th>`
+                            ).join('')}
+                            <th class="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase">Total Games Won</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        ${renderSetScoreRow(match, 'p1', p1Name, inputClass)}
+                        ${renderSetScoreRow(match, 'p2', p2Name, inputClass)}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-3 flex justify-between items-center">
+                 <button class="btn-add-set bg-indigo-500 hover:bg-indigo-600 text-white text-xs px-2 py-1 rounded-md transition duration-150 ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}" 
+                        data-match-id="${match.id}" ${isCompleted ? 'disabled' : ''}>
+                    + Add Set
+                </button>
+                <p class="text-sm font-semibold text-gray-900">
+                    Sets: <span class="text-indigo-600 font-bold">${getSetsScoreString(match)}</span>
+                </p>
+                    <p class="text-sm font-semibold ${isCompleted ? 'text-green-700' : 'text-gray-500'}" id="winner-status-${match.id}">
+                    ${isCompleted ? `🏆 **Winner:** ${match.winner}` : 'Status: In Progress'}
+                </p>
+            </div>
+        </div>
+    `;
+    return cardHtml;
+}
+
+/**
+ * Helper para renderizar una fila de la tabla de puntuación (un jugador).
+ * @param {object} match Objeto partido.
+ * @param {string} pKey 'p1' o 'p2'.
+ * @param {string} name Nombre del jugador.
+ * @param {string} inputClass Clase CSS para el input.
+ * @returns {string} HTML de la fila de la tabla.
+ */
+function renderSetScoreRow(match, pKey, name, inputClass) {
+    const isP1 = pKey === 'p1';
+    // CORRECCIÓN CLAVE: Verificar si hay un ganador para deshabilitar los inputs.
+    const isDisabled = match.winner !== null;
+
+    // Calculate total games won for the final column
+    let totalGames = 0;
+    
+    let setInputsHtml = match.scores.map((setScore, setIndex) => {
+        // Si el jugador es un placeholder de playoff, deshabilitar edición.
+        const playerIsPlaceholder = name.startsWith('Winner') || name.startsWith('Loser');
+        const effectiveDisabled = isDisabled || playerIsPlaceholder;
+
+        const games = isP1 ? setScore[0] : setScore[1];
+        totalGames += games || 0;
+        
+        // Max score input should be the set limit + 1 (for the X-(X-1) case in an X-game set)
+        const maxInputGames = maxGamesPerSet + 1; 
+
+        return `
+            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
+                <input type="number" min="0" max="${maxInputGames}" value="${games !== undefined ? games : ''}" 
+                        data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
+                        class="${inputClass} set-score-input w-14 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${effectiveDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
+                        ${effectiveDisabled ? 'disabled' : ''}>
+            </td>
+        `;
+    }).join('');
+
+    return `
+        <tr>
+            <td class="px-3 py-2 font-medium text-gray-900">${name}</td>
+            ${setInputsHtml}
+            <td class="px-3 py-2 text-center text-sm font-bold text-indigo-600">${totalGames}</td>
+        </tr>
+    `;
+}
+
+/**
+ * Obtiene la puntuación de sets en formato "X-Y".
+ */
+function getSetsScoreString(match) {
+    const result = checkMatchWinner(match);
+    return `${result.p1Sets}-${result.p2Sets}`;
+}
+
+/**
+ * Re-renderiza una tarjeta de partido específica para actualizar el estado.
+ */
+function reRenderMatchCard(match) {
+    const oldCard = document.getElementById(`match-card-${match.id}`);
+    if (oldCard) {
+        const newHtml = renderMatchCard(match);
+        // Crear un div temporal para el nuevo HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newHtml;
+        const newCard = tempDiv.firstChild;
+        
+        // Reemplazar la tarjeta antigua
+        oldCard.parentNode.replaceChild(newCard, oldCard);
+        
+        // Vuelve a añadir el listener para el botón de 'Add Set' en la nueva tarjeta
+        newCard.querySelector('.btn-add-set')?.addEventListener('click', handleAddSet);
     }
 }
 
 
-// Entry point (called after DOMContentLoaded and Firebase setup)
-window.loadAndInitializeLogic = function () {
-  console.log("🎾 App logic initialized");
-  loadData();
-  setupUI();
-  updateUI();
-  
-  // Force a save to cloud if we are in cloud mode and starting fresh
-  if (window.isCloudMode) saveData(true); 
-};
-
-// FIX: Wait for the entire HTML document to load before running initialization logic
-document.addEventListener("DOMContentLoaded", () => {
-    if (!window.isCloudMode && typeof window.loadAndInitializeLogic === 'function') {
-        window.loadAndInitializeLogic();
-    }
-});
-
-
-// ---------------------------
-// UI SETUP
-// ---------------------------
-function setupUI() {
-  // DOM elements
-  const maxInput = document.getElementById("max-jugadores-input");
-  const groupInput = document.getElementById("num-grupos-input");
-  const gamesPerSetInput = document.getElementById("max-games-set-input"); 
-  const btnSetMax = document.getElementById("btn-configurar-max");
-  const btnSetGroups = document.getElementById("btn-configurar-grupos");
-  const btnSetGames = document.getElementById("btn-configurar-juegos"); 
-  const addPlayerBtn = document.getElementById("btn-agregar-participante");
-  const playerNameInput = document.getElementById("nombre-input");
-  const matchTypeSelector = document.getElementById("match-type");
-  const startBtn = document.getElementById("btn-generate-matches");
-  const loadForm = document.getElementById("load-tournament-form");
-  const externalIdInput = document.getElementById("external-id-input");
-  const resetBtn = document.getElementById("btn-borrar-datos");
-  
-  // Aseguramos que el input de la UI refleje el valor por defecto
-  if (gamesPerSetInput) gamesPerSetInput.value = maxGamesPerSet;
-
-  // --- Match Type Selector Handler ---
-  if (matchTypeSelector) {
-    matchTypeSelector.value = mode;
-    matchTypeSelector.addEventListener("change", (e) => {
-      mode = e.target.value;
-      saveData(true);
-      showStatus(`🎾 Mode changed to: ${mode.toUpperCase()}`, "green");
-    });
-  }
-  
-  // --- Set Games Per Set Button Handler (NEW) ---
-  if (btnSetGames) {
-        btnSetGames.addEventListener("click", () => {
-            const newMaxGames = parseInt(gamesPerSetInput.value);
-            const msg = document.getElementById("set-games-message");
-            if (newMaxGames >= 4 && newMaxGames % 2 === 0) {
-                maxGamesPerSet = newMaxGames;
-                updateUI();
-                saveData(true);
-                msg.textContent = `✅ Max games per set updated to ${maxGamesPerSet}`;
-                msg.className = "text-green-600 text-sm mt-1";
-            } else {
-                msg.textContent = "⚠️ Max games must be even and at least 4.";
-                msg.className = "text-red-600 text-sm mt-1";
-            }
-        });
-    }
-
-  // --- Set Max Button Handler ---
-  if (btnSetMax) {
-        btnSetMax.addEventListener("click", () => {
-            const newMax = parseInt(maxInput.value);
-            const msg = document.getElementById("set-max-message");
-            if (newMax >= 4 && newMax % 2 === 0) {
-                maxPlayers = newMax;
-                if (players.length > maxPlayers) {
-                    players = players.slice(0, maxPlayers);
-                    showStatus(`⚠️ Players truncated to ${maxPlayers}.`, "orange");
-                }
-                updateUI();
-                saveData(true);
-                msg.textContent = `✅ Max players updated to ${maxPlayers}`;
-                msg.className = "text-green-600 text-sm mt-1";
-            } else {
-                msg.textContent = "⚠️ Max players must be even and at least 4.";
-                msg.className = "text-red-600 text-sm mt-1";
-            }
-        });
-    }
-
-  // --- Set Groups Button Handler ---
-  if (btnSetGroups) {
-        btnSetGroups.addEventListener("click", () => {
-            const newGroups = parseInt(groupInput.value);
-            const msg = document.getElementById("set-group-message");
-            if (newGroups >= 1 && newGroups <= 6 && maxPlayers % newGroups === 0) {
-                numGroups = newGroups;
-                updateUI();
-                saveData(true);
-                msg.textContent = `✅ Groups updated to ${numGroups}`;
-                msg.className = "text-green-600 text-sm mt-1";
-            } else {
-                msg.textContent = `⚠️ Groups must divide max players (${maxPlayers}) evenly.`;
-                msg.className = "text-red-600 text-sm mt-1";
-            }
-        });
-    }
-
-  // --- Add Player Button Handler ---
-  if (addPlayerBtn) {
-        addPlayerBtn.addEventListener("click", async () => {
-            const name = playerNameInput.value.trim();
-            const photoInput = document.getElementById("foto-input");
-            
-            if (!name) return;
-            if (players.length >= maxPlayers) {
-                alert("Maximum players reached!");
-                return;
-            }
-            
-            // Lógica para leer la foto (async)
-            const photoFile = photoInput.files.length > 0 ? photoInput.files[0] : null;
-            const photoURL = await readImageAsDataURL(photoFile);
-            
-            // Guardar jugador como objeto
-            players.push({ name: name, photoURL: photoURL });
-            
-            playerNameInput.value = "";
-            photoInput.value = ""; // Limpiar el input de la foto
-            updateUI();
-            saveData(true);
-        });
-    }
-
-  // --- Generate Matches Button Handler ---
-  if (startBtn) {
-    startBtn.addEventListener("click", () => {
-      if (players.length < maxPlayers) {
-        alert(`You need ${maxPlayers - players.length} more players to generate matches.`);
-        return;
-      }
-
-      generateMatches();
-      saveData(true);
-      showStatus("✅ Matches generated. Scroll down to see the groups and matches.", "green");
-    });
-  }
-  
-  // --- Load Tournament Handler ---
-  if (loadForm) {
-      loadForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const externalId = externalIdInput.value.trim();
-        if (externalId) {
-            window.userId = externalId;
-            localStorage.setItem("current-tournament-id", externalId);
-            loadData(true); 
-        }
-      });
-  }
-  
-  // --- Reset Tournament Handler ---
-  if (resetBtn) {
-      resetBtn.addEventListener("click", () => {
-        // Clear all local data
-        localStorage.removeItem("tournament-data");
-        localStorage.removeItem("current-tournament-id");
-        
-        // Generate a new unique ID for a fresh tournament
-        window.userId = crypto.randomUUID(); 
-        
-        // Reset local state
-        players = [];
-        maxPlayers = 10;
-        numGroups = 2;
-        mode = "singles";
-        maxGamesPerSet = 6; 
-        setsToWinMatch = 1; // Reset to default 1 set to win
-        matches = [];
-        playoffMatches = []; 
-        
-        updateUI();
-        renderMatches(); // Clear match display
-        saveData(true); 
-        showStatus("🗑️ Tournament reset. Starting a new Cloud session.", "red");
-      });
-  }
-}
-
-// ---------------------------
-// DATA HANDLING (CLOUD & LOCAL)
-// ---------------------------
-async function saveData(saveToCloud = false) {
-  const data = { 
-    players, 
-    maxPlayers, 
-    numGroups, 
-    mode, 
-    maxGamesPerSet, 
-    setsToWinMatch, // Save new variable
-    matches, 
-    playoffMatches, 
-    timestamp: Date.now() 
-}; 
-  
-  // 1. Save to Local Storage (always happens)
-  localStorage.setItem("tournament-data", JSON.stringify(data));
-  localStorage.setItem("current-tournament-id", window.userId);
-
-  // 2. Save to Cloud (if enabled)
-  if (saveToCloud && window.isCloudMode && window.db) {
-    try {
-      await window.setDoc(window.doc(window.db, "tournaments", window.userId), data);
-      showStatus(`☁️ Saved to Cloud. ID: ${window.userId.substring(0, 8)}...`, "indigo");
-    } catch (e) {
-      console.error("Error saving document to cloud:", e);
-      showStatus("❌ Error saving to cloud. Check console. Did you enable Firestore?", "red");
-    }
-  }
-}
-
-async function loadData(loadFromCloud = false) {
-  let data = {};
-  
-  if (loadFromCloud && window.isCloudMode && window.db) {
-    // Attempt to load from Cloud
-    try {
-      const docRef = window.doc(window.db, "tournaments", window.userId);
-      const docSnap = await window.getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        data = docSnap.data();
-        showStatus(`🌐 Loaded Tournament ID: ${window.userId.substring(0, 8)}...`, "blue");
-      } else {
-        showStatus(`⚠️ Cloud ID '${window.userId.substring(0, 8)}...' not found. Loading local data.`, "red");
-      }
-    } catch (e) {
-      console.error("Error loading document from cloud:", e);
-      showStatus("❌ Error loading from cloud. Check console.", "red");
-    }
-  } 
-
-  // If cloud load failed or we are in local mode, load from local storage
-  if (Object.keys(data).length === 0) {
-    data = JSON.parse(localStorage.getItem("tournament-data") || "{}");
-    if (Object.keys(data).length > 0) {
-        showStatus("💾 Loaded data from local storage.", "gray");
-    }
-  }
-
-  // Update global state
-  if (data.players) {
-      // Asegurar compatibilidad: si son strings, convertirlos a objetos de jugador.
-      players = data.players.map(p => typeof p === 'string' ? { name: p, photoURL: null } : p);
-  }
-  if (data.maxPlayers) maxPlayers = data.maxPlayers;
-  if (data.numGroups) numGroups = data.numGroups;
-  if (data.mode) mode = data.mode;
-  // If data.maxGamesPerSet exists, use it. Otherwise, use the new default (6).
-  maxGamesPerSet = data.maxGamesPerSet !== undefined ? data.maxGamesPerSet : 6;
-  // If data.setsToWinMatch exists, use it. Otherwise, use the new default (1).
-  setsToWinMatch = data.setsToWinMatch !== undefined ? data.setsToWinMatch : 1; 
-  
-  if (data.matches) matches = data.matches;
-  if (data.playoffMatches) playoffMatches = data.playoffMatches; 
-
-  updateUI();
-  renderMatches(); 
-  
-  saveData();
-}
-
-// ---------------------------
-// UI UPDATES
-// ---------------------------
-function updateUI() {
-  // Update Max Players displays
-  document.getElementById("max-jugadores-actual").textContent = maxPlayers;
-  document.getElementById("max-participantes-display").textContent = maxPlayers;
-
-  // Update Group count display
-  const numGroupsDisplay = document.getElementById("num-grupos-actual");
-  if (numGroupsDisplay) numGroupsDisplay.textContent = numGroups;
-  
-  // Update Max Games Per Set display (NEW)
-  const maxGamesDisplay = document.getElementById("max-games-set-actual");
-  if (maxGamesDisplay) maxGamesDisplay.textContent = maxGamesPerSet;
-  const gamesPerSetInput = document.getElementById("max-games-set-input");
-  if (gamesPerSetInput) gamesPerSetInput.value = maxGamesPerSet; // Ensure input field also reflects current value
-
-  // Display Tournament ID
-  const idDisplay = document.getElementById("tournament-id-display");
-  if (idDisplay) {
-    const isCloud = window.isCloudMode ? '🌐 Cloud ID' : '💻 Local ID';
-    idDisplay.innerHTML = `<p class="text-xs text-gray-500">${isCloud}:</p><p class="font-bold text-sm text-indigo-700">${window.userId.substring(0, 8)}...</p>`;
-  }
-
-  // Update Player Counter displays
-  document.getElementById("contador-participantes").textContent = players.length;
-  document.getElementById("contador-participantes-list").textContent = players.length;
-
-  // Update Player List (Añade manejo de fotos/avatares)
-  const list = document.getElementById("lista-participantes");
-  list.innerHTML = "";
-  players.forEach((p) => {
-    // Aseguramos que p sea un objeto. Si es solo un nombre (de datos antiguos), lo convertimos.
-    const playerObj = typeof p === 'string' ? { name: p, photoURL: null } : p;
-    
-    const li = document.createElement("li");
-    li.className = "flex items-center space-x-2 py-1";
-    
-    // Añadir la imagen si existe
-    if (playerObj.photoURL) {
-      const img = document.createElement("img");
-      img.src = playerObj.photoURL;
-      img.className = "w-8 h-8 rounded-full object-cover shadow";
-      li.appendChild(img);
-    } else {
-      // Placeholder si no hay foto
-      const initial = playerObj.name.charAt(0).toUpperCase();
-      const placeholder = document.createElement("div");
-      placeholder.className = "w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700";
-      placeholder.textContent = initial;
-      li.appendChild(placeholder);
-    }
-    
-    const nameSpan = document.createElement("span");
-    nameSpan.textContent = playerObj.name;
-    li.appendChild(nameSpan);
-    
-    list.appendChild(li);
-  });
-
-  // Update "Generate Matches" button state
-  const startBtn = document.getElementById("btn-generate-matches");
-  if (startBtn) { 
-    if (players.length === maxPlayers) {
-      startBtn.disabled = false;
-      startBtn.classList.remove("opacity-50", "cursor-not-allowed");
-      startBtn.textContent = "🎾 Generate Random Matches";
-    } else {
-      startBtn.disabled = true;
-      startBtn.classList.add("opacity-50", "cursor-not-allowed");
-      startBtn.textContent = `🎾 Generate Random Matches (Need ${maxPlayers - players.length} more)`;
-    }
-  }
-  
-  // Update match type selector
-  const matchTypeSelector = document.getElementById("match-type");
-  if (matchTypeSelector) matchTypeSelector.value = mode;
-}
-
-function showStatus(message, color = "blue") {
-  const div = document.createElement("div");
-  div.textContent = message;
-  div.className = `mt-3 text-${color}-600 text-sm font-semibold`;
-  
-  // Get the element where messages are displayed (Load Message area)
-  const messageArea = document.getElementById("load-message");
-  if (messageArea) {
-    messageArea.innerHTML = ''; // Clear previous message
-    messageArea.appendChild(div);
-  }
-  
-  setTimeout(() => div.remove(), 4000);
-}
-
-// ---------------------------
-// MATCH GENERATION & RENDERING
-// ---------------------------
-function generateMatches() {
-  matches = [];
-  playoffMatches = []; 
-
-  if (players.length % numGroups !== 0) {
-    showStatus(`⚠️ Cannot generate matches. Total players (${players.length}) must be divisible by number of groups (${numGroups}).`, "red");
-    return;
-  }
-  
-  // Establecer a 1 set para ganar en la fase de grupos (Pro Set)
-  setsToWinMatch = 1;
-  saveData(false); // Update local setting
-
-  // Usamos solo los nombres para la generación de partidos
-  const playerNames = players.map(p => p.name);
-  const shuffledPlayers = [...playerNames].sort(() => Math.random() - 0.5);
-  const playersPerGroup = playerNames.length / numGroups;
-  const groups = [];
-  for (let i = 0; i < numGroups; i++) {
-    groups.push(shuffledPlayers.slice(i * playersPerGroup, (i + 1) * playersPerGroup));
-  }
-
-  if (mode === "singles") {
-    groups.forEach((group, groupIndex) => {
-      for (let i = 0; i < group.length; i++) {
-        for (let j = i + 1; j < group.length; j++) {
-          matches.push({ 
-            id: crypto.randomUUID(),
-            type: "singles", 
-            group: groupIndex + 1,
-            p1: group[i], 
-            p2: group[j],
-            winner: null, 
-            // scores is an array of set scores [ [p1_set1, p2_set1], ... ]
-            scores: [[undefined, undefined]], 
-          });
-        }
-      }
-    });
-  } else {
-    groups.forEach((group, groupIndex) => {
-      const teams = [];
-      // Group players into teams of 2
-      for (let i = 0; i < group.length; i += 2) {
-        teams.push([group[i], group[i + 1]]);
-      }
-      
-      // Generate matches between teams
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-          matches.push({
-            id: crypto.randomUUID(),
-            type: "doubles",
-            group: groupIndex + 1,
-            p1: teams[i], // Array of 2 players
-            p2: teams[j], // Array of 2 players
-            winner: null,
-            // scores is an array of set scores
-            scores: [[undefined, undefined]], 
-          });
-        }
-      }
-    });
-  }
-
-  renderMatches(); 
-}
-
-// Generates the 3rd Place Match and Final based on group phase rankings (using team names)
-function generatePlayoffMatches(standings) {
-    if (standings.length < 4 || numGroups < 2) return;
-
-    const top4 = standings.slice(0, 4).map(s => s.player); 
-
-    if (top4.length < 4) return; 
-
-    const groupMatchesCompleted = matches.every(m => m.winner !== null);
-    if (!groupMatchesCompleted) return;
-    
-    // Establecer a 2 sets para ganar en la fase eliminatoria (Mejor de 3)
-    setsToWinMatch = 2; 
-
-    const player1st = top4[0];
-    const player2nd = top4[1];
-    const player3rd = top4[2];
-    const player4th = top4[3];
-
-    playoffMatches = [];
-    
-    // 1. 3rd Place Match (3rd vs 4th Global Rank)
-    playoffMatches.push({
-        id: '3rd-place-match',
-        stage: '3rd Place Match',
-        p1: player3rd,
-        p2: player4th,
-        winner: null,
-        loser: null,
-        scores: [[undefined, undefined]], // Initialize with one set
-        type: mode 
-    });
-
-    // 2. Final Match (1st vs 2nd Global Rank)
-    playoffMatches.push({
-        id: 'final-match',
-        stage: 'Final',
-        p1: player1st,
-        p2: player2nd,
-        winner: null,
-        loser: null,
-        scores: [[undefined, undefined]], // Initialize with one set
-        type: mode 
-    });
-}
-
+/**
+ * Renderiza la lista de partidos de la fase actual (Grupos o Playoffs).
+ */
 function renderMatches() {
-    const container = document.getElementById("matches-container");
-    
-    if (matches.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 mt-4">No matches generated yet. Fill the players list and click "Generate Matches".</p>';
-        return;
-    }
+    let currentMatches = currentStage === 'group' ? matches : playoffMatches;
 
-    // ----------------------------------------------------------------
-    // STEP 3: GROUP MATCHES SECTION
-    // ----------------------------------------------------------------
-    let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Group Match Results (Pro Set to ${maxGamesPerSet} Games)</h2>
-        <p class="text-sm text-gray-600 mb-4">A match is won by the first player to reach **${maxGamesPerSet} games** with a two-game lead. If tied at **${maxGamesPerSet - 1}-${maxGamesPerSet - 1}**, a tiebreak is played, and the final score will be **${maxGamesPerSet}-${maxGamesPerSet - 1}**. **Groups are decided by winning 1 set.**</p>
-        <div id="match-list" class="space-y-4">`;
+    if (currentStep === 'finalStandings') {
+        matchesContainer.innerHTML = '<h2>Tournament Concluded</h2>';
+        playoffContainer.innerHTML = '';
+        renderFinalStandings();
+        return;
+    }
+    
+    matchesContainer.innerHTML = '';
+    playoffContainer.innerHTML = '';
 
-    const groupedMatches = matches.reduce((acc, match) => {
-        acc[match.group] = acc[match.group] || [];
-        acc[match.group].push(match);
-        return acc;
-    }, {});
+    const containerToUse = currentStage === 'group' ? matchesContainer : playoffContainer;
 
-    for (const group in groupedMatches) {
-        html += `<div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-            <h3 class="text-xl font-semibold text-indigo-700 mb-3">Group ${group}</h3>
-            <div id="group-${group}-matches" class="space-y-3">`;
+    if (currentStage === 'group') {
+        // Agrupar por grupo para el renderizado
+        const groupedMatches = {};
+        currentMatches.forEach(m => {
+            if (!groupedMatches[m.group]) groupedMatches[m.group] = [];
+            groupedMatches[m.group].push(m);
+        });
 
-        groupedMatches[group].forEach((match) => {
-             html += `<div id="match-card-${match.id}">
-                ${renderMatchCard(match)}
-             </div>`;
-        });
-        
-        html += `</div></div>`;
-    }
+        Object.keys(groupedMatches).sort().forEach(groupKey => {
+            const groupTitle = document.createElement('h2');
+            groupTitle.className = 'text-2xl font-extrabold text-gray-800 my-4 border-b pb-2';
+            groupTitle.textContent = `Group ${groupKey} Matches`;
+            containerToUse.appendChild(groupTitle);
 
-    html += `</div></section>`; 
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
+            groupedMatches[groupKey].forEach(match => {
+                groupDiv.innerHTML += renderMatchCard(match);
+            });
+            containerToUse.appendChild(groupDiv);
+        });
 
-    // ----------------------------------------------------------------
-    // STEP 4: STANDINGS & PLAYOFFS SECTION
-    // ----------------------------------------------------------------
-    const standings = calculateStandings();
-    
-    const allGroupMatchesComplete = matches.every(m => m.winner !== null);
-    if (allGroupMatchesComplete && playoffMatches.length === 0 && standings.length >= 4 && numGroups >= 2) {
-        generatePlayoffMatches(standings);
-        saveData(false);
-    }
-    
-    html += `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">4. Group Standings, Playoffs & Global Rank</h2>
-        <div id="standings-list" class="text-gray-600">
-            ${renderStandings(standings)}
-        </div>
-        
-        ${allGroupMatchesComplete && playoffMatches.length > 0 ? renderPlayoffs(playoffMatches) : 
-            `<p class="mt-6 text-orange-600 font-semibold">Complete todos los partidos de grupo para generar la Fase Eliminatoria (Top 4).</p>`}
-        
-        <div id="final-rankings-display">
-             ${renderFinalRankings(standings)}
-        </div>
-    </section>`;
+        // Asegurarse de renderizar las posiciones de grupo junto a los partidos
+        renderStandings(calculateStandings());
+    } else {
+        // Renderizar Playoffs
+        const stages = ['Quarter Final 1', 'Quarter Final 2', 'Quarter Final 3', 'Quarter Final 4', 'Semi Final 1', 'Semi Final 2', 'Final'];
+        
+        stages.forEach(stageName => {
+            const stageMatches = currentMatches.filter(m => m.stage === stageName);
+            if (stageMatches.length > 0) {
+                const stageTitle = document.createElement('h2');
+                stageTitle.className = 'text-2xl font-extrabold text-indigo-700 my-4 border-b pb-2';
+                stageTitle.textContent = stageName.includes('Final') ? stageName : `Stage: ${stageName}`;
+                containerToUse.appendChild(stageTitle);
+                
+                const stageDiv = document.createElement('div');
+                stageDiv.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-8';
+                stageMatches.forEach(match => {
+                    stageDiv.innerHTML += renderMatchCard(match);
+                });
+                containerToUse.appendChild(stageDiv);
+            }
+        });
+    }
 
-    container.innerHTML = html;
-    
-    // Attach Event Listeners to group match inputs
-    document.querySelectorAll('.set-score-input').forEach(input => {
-        input.addEventListener('input', handleScoreChange);
-    });
-    
-    // Attach Event Listeners to "Add Set" button
-    document.querySelectorAll('.btn-add-set').forEach(button => {
-        button.addEventListener('click', handleAddSet);
-    });
+    // Volver a añadir event listeners después de renderizar el HTML
+    addEventListeners();
 }
 
-// Renders a generic match card (Set/Game Inputs)
-function renderMatchCard(match) {
-    const isCompleted = match.winner !== null;
-    
-    // Obtener información del jugador/equipo incluyendo foto
-    const p1Info = getPlayerDisplayInfo(match.p1.constructor === Array ? match.p1 : match.p1);
-    const p2Info = getPlayerDisplayInfo(match.p2.constructor === Array ? match.p2 : match.p2);
-    
-    const p1Name = p1Info.name;
-    const p2Name = p2Info.name;
-    
-    // Helper para generar el avatar
-    const getAvatarHtml = (info) => {
-        if (info.photoURL) {
-            return `<img src="${info.photoURL}" alt="${info.name}" class="w-8 h-8 rounded-full object-cover mr-2 inline-block shadow">`;
-        }
-        const initial = info.name.charAt(0).toUpperCase();
-        return `<div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold text-gray-700 mr-2 inline-block">${initial}</div>`;
-    };
-    
-    const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
-    
-    const isPlayoff = match.stage;
-    const stageInfo = isPlayoff ? match.stage : `Group ${match.group}`;
-    const inputClass = isPlayoff ? 'playoff-set-input' : 'group-set-input';
+/**
+ * Renderiza la tabla de posiciones de la fase de grupos.
+ */
+function renderStandings(standings) {
+    if (currentStage !== 'group') {
+        standingsContainer.innerHTML = '';
+        return;
+    }
+    
+    // Agrupar por grupo para la tabla
+    const groupedStandings = {};
+    standings.forEach(s => {
+        if (!groupedStandings[s.group]) groupedStandings[s.group] = [];
+        groupedStandings[s.group].push(s);
+    });
 
-    let cardHtml = `
-        <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
-            <p class="text-lg font-bold text-gray-900 mb-2 flex items-center">
-                ${stageInfo}: ${getAvatarHtml(p1Info)} ${p1Name} vs ${getAvatarHtml(p2Info)} ${p2Name}
-            </p>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead>
-                        <tr>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Team/Player</th>
-                            ${match.scores.map((_, index) => 
-                                `<th class="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase">Set ${index + 1}</th>`
-                            ).join('')}
-                            <th class="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase">Total Games Won</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        ${renderSetScoreRow(match, 'p1', p1Name, inputClass)}
-                        ${renderSetScoreRow(match, 'p2', p2Name, inputClass)}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="mt-3 flex justify-between items-center">
-                 <button class="btn-add-set bg-indigo-500 hover:bg-indigo-600 text-white text-xs px-2 py-1 rounded-md transition duration-150 ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}" 
-                        data-match-id="${match.id}" ${isCompleted ? 'disabled' : ''}>
-                    + Add Set
-                </button>
-                <p class="text-sm font-semibold text-gray-900">
-                    Sets: <span class="text-indigo-600 font-bold">${getSetsScoreString(match)}</span>
-                </p>
-                 <p class="text-sm font-semibold ${isCompleted ? 'text-green-700' : 'text-gray-500'}" id="winner-status-${match.id}">
-                    ${isCompleted ? `🏆 **Winner:** ${match.winner}` : 'Status: In Progress'}
-                </p>
-            </div>
-        </div>
-    `;
-    return cardHtml;
+    let html = '<h2 class="text-2xl font-extrabold text-gray-800 mt-6 mb-4 border-b pb-2">Group Standings</h2>';
+
+    Object.keys(groupedStandings).sort().forEach(groupKey => {
+        html += `<h3 class="text-xl font-bold text-gray-700 mt-4 mb-2">Group ${groupKey}</h3>`;
+        
+        html += `
+            <div class="overflow-x-auto shadow-lg rounded-lg mb-6">
+                <table class="min-w-full divide-y divide-gray-200 bg-white">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Player</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">MP</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">W</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">L</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">SW</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">SL</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">GW</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">GL</th>
+                            <th class="px-3 py-2 text-center text-xs font-bold text-indigo-600 uppercase">Points</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+        `;
+
+        groupedStandings[groupKey].forEach((stat, index) => {
+            const playerInfo = getPlayerDisplayInfo(stat.name);
+            html += `
+                <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                    <td class="px-3 py-2 whitespace-nowrap text-sm font-bold text-gray-900 text-left">${index + 1}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 text-left flex items-center">
+                        ${playerInfo.photoURL ? `<img src="${playerInfo.photoURL}" alt="${playerInfo.name}" class="w-6 h-6 rounded-full object-cover mr-2">` : ''}
+                        ${stat.name}
+                    </td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">${stat.matchesPlayed}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">${stat.matchesWon}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">${stat.matchesLost}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">${stat.setsWon}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">${stat.setsLost}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">${stat.gamesWon}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">${stat.gamesLost}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm font-bold text-indigo-600 text-center">${stat.points}</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table></div>';
+    });
+
+    // Botón para pasar a Playoffs
+    const allMatchesCompleted = matches.every(m => m.winner !== null);
+    if (allMatchesCompleted) {
+        html += `
+            <div class="mt-6 text-center">
+                <button id="btn-start-playoffs" class="px-6 py-3 bg-green-600 text-white font-bold rounded-lg shadow-xl hover:bg-green-700 transition duration-200">
+                    🚀 Start Playoffs Stage
+                </button>
+            </div>
+        `;
+    }
+
+    standingsContainer.innerHTML = html;
+    
+    // Listener para el botón de playoffs
+    if (allMatchesCompleted) {
+        document.getElementById('btn-start-playoffs')?.addEventListener('click', () => {
+            const standings = calculateStandings();
+            generatePlayoffStructure(standings);
+            renderMatches();
+        });
+    }
 }
 
-// Helper to render one row in the score table (Multiple Sets)
-function renderSetScoreRow(match, pKey, name, inputClass) {
-    const isP1 = pKey === 'p1';
-    const isDisabled = match.winner !== null;
-
-    // Calculate total games won for the final column
-    let totalGames = 0;
-    
-    let setInputsHtml = match.scores.map((setScore, setIndex) => {
-        const games = isP1 ? setScore[0] : setScore[1];
-        totalGames += games || 0;
-        
-        // Max score input should be the set limit + 1 (for the X-(X-1) case in an X-game set)
-        const maxInputGames = maxGamesPerSet + 1; 
-
-        return `
-            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
-                <input type="number" min="0" max="${maxInputGames}" value="${games !== undefined ? games : ''}" 
-                       data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
-                       class="${inputClass} set-score-input w-14 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
-                       ${isDisabled ? 'disabled' : ''}>
-            </td>
-        `;
-    }).join('');
-
-    let rowHtml = `<tr>
-        <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 w-1/3">${name}</td>
-        ${setInputsHtml}
-        <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-gray-700">${totalGames}</td>
-    </tr>`;
-    return rowHtml;
-}
-
-// Helper to format the match score string for sets (e.g., 1-0 (6-4, -))
-function getSetsScoreString(match) {
-    if (match.scores.length === 0) return '0-0 (0 Sets)';
-
-    let p1Sets = 0;
-    let p2Sets = 0;
-
-    const gameScores = match.scores.map(set => {
-        const p1Games = set[0];
-        const p2Games = set[1];
-        
-        // Solo contamos sets completos para la puntuación total de sets
-        const setWinner = checkSetWinner(set);
-        if (setWinner === 'p1') {
-            p1Sets++;
-        } else if (setWinner === 'p2') {
-            p2Sets++;
-        }
-
-        if (p1Games === undefined || p2Games === undefined) return '-'; 
-        return `${p1Games}-${p2Games}`;
-    }).join(', ');
-    
-    return `${p1Sets}-${p2Sets} (${gameScores})`;
+/**
+ * Renderiza la clasificación final (solo después de la final de playoffs).
+ */
+function renderFinalStandings() {
+    const finalMatch = playoffMatches.find(m => m.id === 'FINAL');
+    
+    if (finalMatch && finalMatch.winner) {
+        const winner = finalMatch.winner;
+        const loser = finalMatch.loser;
+        
+        let html = `
+            <div class="text-center p-8 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-xl shadow-2xl mt-8">
+                <h1 class="text-4xl font-extrabold text-yellow-700 mb-4">🏆 Tournament Final Standings 🏆</h1>
+                <p class="text-2xl font-semibold text-gray-800 mb-6">Match: ${finalMatch.p1} vs ${finalMatch.p2}</p>
+                <div class="inline-block bg-white p-6 rounded-lg shadow-inner ring-4 ring-yellow-500">
+                    <h2 class="text-3xl font-bold text-green-600">Champion: ${winner}</h2>
+                    <p class="text-xl text-gray-700 mt-2">Runner-up: ${loser}</p>
+                </div>
+            </div>
+        `;
+        playoffContainer.innerHTML = html;
+    } else {
+        playoffContainer.innerHTML = '<p class="text-xl text-gray-600 text-center mt-8">Final not yet completed.</p>';
+    }
 }
 
 
-// ---------------------------
-// MATCH RESULT HANDLERS
-// ---------------------------
+// --- 6. GESTORES DE EVENTOS ---
 
-// Handles adding a new set input row
-function handleAddSet(event) {
-    const button = event.target;
-    const matchId = button.dataset.matchId;
+/**
+ * Asocia los gestores de eventos a los elementos interactivos.
+ */
+function addEventListeners() {
+    // Escuchar cambios en cualquier input de marcador
+    document.querySelectorAll('.set-score-input').forEach(input => {
+        input.removeEventListener('change', handleScoreChange); // Prevenir duplicados
+        input.addEventListener('change', handleScoreChange);
+    });
+    
+    // Escuchar clics en el botón de añadir set
+    document.querySelectorAll('.btn-add-set').forEach(button => {
+        button.removeEventListener('click', handleAddSet); // Prevenir duplicados
+        button.addEventListener('click', handleAddSet);
+    });
+    
+    // Botón principal de cambio de fase
+    document.getElementById('btn-toggle-stage')?.removeEventListener('click', toggleStage);
+    document.getElementById('btn-toggle-stage')?.addEventListener('click', toggleStage);
 
-    // Find the match in either matches or playoffMatches
-    let match = matches.find(m => m.id === matchId);
-    if (!match) {
-        match = playoffMatches.find(m => m.id === matchId);
-    }
-    if (!match) return;
-
-    // Add a new set slot
-    match.scores.push([undefined, undefined]);
-    
-    // Re-render the match card
-    reRenderMatchCard(match);
-    
-    saveData(true);
+    // Botón de gestión de jugadores
+    document.getElementById('btn-manage-players')?.removeEventListener('click', renderPlayerManagement);
+    document.getElementById('btn-manage-players')?.addEventListener('click', renderPlayerManagement);
+    
+    // Guardar configuración
+    document.getElementById('btn-save-settings')?.removeEventListener('click', handleSaveSettings);
+    document.getElementById('btn-save-settings')?.addEventListener('click', handleSaveSettings);
 }
 
-// Generic handler for score change (works for both group and playoff matches)
+
+/**
+ * Generic handler for score change (works for both group and playoff matches)
+ */
 function handleScoreChange(event) {
-    const input = event.target;
-    const matchId = input.dataset.matchId;
-    const pKey = input.dataset.player; 
-    const setIndex = parseInt(input.dataset.setIndex);
+    const input = event.target;
+    const matchId = input.dataset.matchId;
+    const pKey = input.dataset.player; 
+    const setIndex = parseInt(input.dataset.setIndex);
 
-    let value = input.value.trim() === '' ? undefined : parseInt(input.value.trim());
+    // Find the match
+    let match = matches.find(m => m.id === matchId);
+    const isPlayoff = !match;
+    if (isPlayoff) {
+        match = playoffMatches.find(m => m.id === matchId);
+    }
+    if (!match) return;
+    
+    // CORRECCIÓN CLAVE: VALIDACIÓN INICIAL PARA EVITAR EDICIÓN
+    if (match.winner !== null) {
+        // Si un usuario intenta editar un campo deshabilitado, forzamos la recarga del valor anterior.
+        const prevValue = (pKey === 'p1' ? match.scores[setIndex][0] : match.scores[setIndex][1]) || '';
+        input.value = prevValue;
+        showStatus("⚠️ Cannot change score for a completed match.", "orange");
+        // Aseguramos que el input esté realmente deshabilitado si por alguna razón no lo estaba
+        input.disabled = true;
+        return;
+    }
 
-    // Find the match
-    let match = matches.find(m => m.id === matchId);
-    const isPlayoff = !match;
-    if (isPlayoff) {
-        match = playoffMatches.find(m => m.id === matchId);
-    }
-    if (!match) return;
-    
-    if (match.winner !== null) {
-        // Revert input value if trying to edit a finished match
-        input.value = (pKey === 'p1' ? match.scores[setIndex][0] : match.scores[setIndex][1]) || '';
-        showStatus("⚠️ Cannot change score for a completed match.", "orange");
-        return;
-    }
+    // Comprobar si el jugador es un placeholder y bloquear edición si lo es.
+    const playerName = pKey === 'p1' ? match.p1 : match.p2;
+    if (typeof playerName === 'string' && (playerName.startsWith('Winner') || playerName.startsWith('Loser'))) {
+        const prevValue = (pKey === 'p1' ? match.scores[setIndex][0] : match.scores[setIndex][1]) || '';
+        input.value = prevValue;
+        showStatus(`🚫 Score cannot be entered for placeholder '${playerName}'.`, "orange");
+        return;
+    }
 
-    const scorePosition = pKey === 'p1' ? 0 : 1;
-    match.scores[setIndex][scorePosition] = value;
-    
-    // Check for match winner (based on total games won)
-    const matchResult = checkMatchWinner(match);
-    match.winner = matchResult.winner;
 
-    // If winner found, set loser for playoffs
-    if (match.winner && isPlayoff) {
-        match.loser = match.winner === match.p1 ? match.p2 : match.p1;
-    }
+    let value = input.value.trim() === '' ? undefined : parseInt(input.value.trim());
 
-    // Re-render the specific card
-    reRenderMatchCard(match);
-    
-    if (match.winner) {
-         showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
-    } else {
-        showStatus(`📝 Score updated. Current sets: ${getSetsScoreString(match)}`, "indigo");
-    }
+    // Validar el valor
+    const maxInputGames = maxGamesPerSet + 1;
+    if (value !== undefined && (value < 0 || value > maxInputGames)) {
+        showStatus(`Invalid game score. Must be between 0 and ${maxInputGames}.`, "red");
+        input.value = '';
+        value = undefined;
+    }
+    
+    const scorePosition = pKey === 'p1' ? 0 : 1;
+    
+    // Inicializar el set si es necesario (debe ser un array)
+    if (!match.scores[setIndex]) {
+        match.scores[setIndex] = [undefined, undefined];
+    }
+    
+    match.scores[setIndex][scorePosition] = value;
+    
+    // Check for match winner
+    const matchResult = checkMatchWinner(match);
+    match.winner = matchResult.winner;
 
-    // Full render only if this was a group match and we need to check for playoffs
-    if (!isPlayoff) {
-        renderMatches(); 
-    } else {
-        // Update standings for final rankings if it was a playoff match
-         renderMatches();
-    }
-    
-    saveData(true);
+    // Si se encuentra un ganador en un playoff, actualiza el siguiente partido
+    if (match.winner && isPlayoff) {
+        match.loser = match.winner === match.p1 ? match.p2 : match.p1;
+        updateNextPlayoffMatch(match);
+    }
+
+    // Re-render the specific card (Esto asegura que los inputs se deshabiliten correctamente)
+    reRenderMatchCard(match);
+    
+    if (match.winner) {
+          showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
+    } else {
+        showStatus(`📝 Score updated. Current sets: ${getSetsScoreString(match)}`, "indigo");
+    }
+
+    // Re-renderizar todo para actualizar posiciones/siguiente fase
+    renderMatches();
+    
+    // Comprobar si la final de playoff ha terminado
+    if (match.id === 'FINAL' && match.winner) {
+        currentStep = 'finalStandings';
+        renderMatches(); // Llama a renderFinalStandings
+    }
+    
+    saveData(true);
 }
 
-// Helper to re-render a match card and re-attach listeners
-function reRenderMatchCard(match) {
-    const cardContainer = document.getElementById(`match-card-${match.id}`);
-    if (cardContainer) {
-        cardContainer.innerHTML = renderMatchCard(match);
-        // Re-attach event listeners
-        cardContainer.querySelectorAll('.set-score-input').forEach(newInput => {
-            newInput.addEventListener('input', handleScoreChange);
-        });
-        cardContainer.querySelectorAll('.btn-add-set').forEach(button => {
-            button.addEventListener('click', handleAddSet);
-        });
-    }
+/**
+ * Gestiona el clic para añadir un nuevo set a un partido.
+ */
+function handleAddSet(event) {
+    const button = event.target;
+    const matchId = button.dataset.matchId;
+
+    let match = matches.find(m => m.id === matchId);
+    const isPlayoff = !match;
+    if (isPlayoff) {
+        match = playoffMatches.find(m => m.id === matchId);
+    }
+    if (!match) return;
+
+    if (match.winner !== null) {
+        showStatus("Cannot add set to a completed match.", "orange");
+        return;
+    }
+
+    // Comprobar si el último set está vacío antes de añadir uno nuevo
+    const lastSet = match.scores[match.scores.length - 1];
+    if (lastSet[0] === undefined && lastSet[1] === undefined) {
+        showStatus("Fill out the current set before adding a new one.", "orange");
+        return;
+    }
+    
+    // Añadir un nuevo set (inicializado con undefined para ambos jugadores)
+    match.scores.push([undefined, undefined]);
+    
+    reRenderMatchCard(match);
+    saveData(true);
 }
 
-// Logic to determine the set winner based on Pro Set rules
-function checkSetWinner(setScore) {
-    const max = maxGamesPerSet;
-    const p1Games = setScore[0];
-    const p2Games = setScore[1];
-
-    if (p1Games === undefined || p2Games === undefined) return null;
-
-    const diff = Math.abs(p1Games - p2Games);
-
-    // Rule 1: Win at max games with a 2-game lead (e.g., 6-4)
-    if (p1Games >= max && diff >= 2) {
-        return 'p1';
-    } else if (p2Games >= max && diff >= 2) {
-        return 'p2';
-    } 
-    
-    // Rule 2: Win at max-(max-1) (e.g., 6-5 after a tiebreak for a 6-game set, or 8-7 for an 8-game set)
-    // Note: This rule assumes a tiebreak is played at (max - 1) all, resulting in a score of max-(max-1)
-    // The previous rule covers scores like 6-0, 6-1, 6-2, 6-3, 7-5, 8-6, etc.
-    else if (p1Games === max && p2Games === max - 1) {
-        return 'p1';
-    } else if (p2Games === max && p1Games === max - 1) {
-        return 'p2';
-    }
-    return null; // Set not finished
+/**
+ * Cambia entre la fase de grupos y la fase eliminatoria.
+ */
+function toggleStage() {
+    if (currentStage === 'group') {
+        currentStage = 'playoff';
+        document.getElementById('btn-toggle-stage').textContent = '⬅️ Back to Group Stage';
+    } else {
+        currentStage = 'group';
+        document.getElementById('btn-toggle-stage').textContent = '🚀 Go to Playoff Stage';
+    }
+    renderMatches();
+    saveData(true);
 }
 
-// Logic to determine the match winner
-function checkMatchWinner(match) {
-    let winner = null;
-    let p1SetWins = 0;
-    let p2SetWins = 0;
-    
-    // Determinar el umbral de sets a ganar: 1 para grupos, 2 para playoffs.
-    const threshold = match.group ? 1 : 2; 
 
-    // Check set results
-    match.scores.forEach(set => {
-        const setWinner = checkSetWinner(set);
-        if (setWinner === 'p1') {
-            p1SetWins++;
-        } else if (setWinner === 'p2') {
-            p2SetWins++;
-        }
-    });
+// --- 7. GESTIÓN DE JUGADORES/CONFIGURACIÓN ---
 
-    // Determine the name of the competitors
-    const p1Id = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
-    const p2Id = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
+/**
+ * Renderiza la interfaz de gestión de jugadores.
+ */
+function renderPlayerManagement() {
+    const managementSection = document.getElementById('management-section');
+    managementSection.classList.remove('hidden');
+    matchesContainer.classList.add('hidden');
+    standingsContainer.classList.add('hidden');
+    playoffContainer.classList.add('hidden');
+    
+    let html = `
+        <h2 class="text-3xl font-extrabold text-indigo-700 my-4 border-b pb-2">Tournament Settings & Players</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-50 p-6 rounded-lg shadow">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Match Rules</h3>
+                <div class="mb-4">
+                    <label for="sets-to-win" class="block text-sm font-medium text-gray-700">Sets needed to win the match:</label>
+                    <input type="number" id="sets-to-win" min="1" max="5" value="${maxSetsToWin}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div class="mb-4">
+                    <label for="games-per-set" class="block text-sm font-medium text-gray-700">Games required to win a set (must lead by 2):</label>
+                    <input type="number" id="games-per-set" min="4" max="7" value="${maxGamesPerSet}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <button id="btn-save-settings" class="w-full px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition">Save Rules & Settings</button>
+            </div>
 
-    // El ganador es quien alcanza el umbral de sets ganados.
-    if (p1SetWins >= threshold) {
-        winner = p1Id;
-    } else if (p2SetWins >= threshold) {
-        winner = p2Id;
-    }
+            <div class="bg-gray-50 p-6 rounded-lg shadow">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Players (${players.length})</h3>
+                <div class="flex mb-4">
+                    <input type="text" id="player-name-input" placeholder="Player Name" class="flex-grow p-2 border border-gray-300 rounded-l-md shadow-sm">
+                    <input type="text" id="player-group-input" placeholder="Group (A, B, C...)" class="w-24 p-2 border border-gray-300 shadow-sm">
+                    <button id="btn-add-player" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-r-md hover:bg-indigo-700 transition">Add</button>
+                </div>
+                
+                <ul id="player-list" class="space-y-2 max-h-64 overflow-y-auto pr-2">
+                    ${players.map(p => `
+                        <li class="flex justify-between items-center p-2 bg-white border border-gray-200 rounded-md shadow-sm">
+                            <span class="font-medium">${p.name} (Group ${p.group})</span>
+                            <button class="btn-remove-player text-red-500 hover:text-red-700 font-bold" data-player-name="${p.name}">Remove</button>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        </div>
+        
+        <div class="mt-8 text-center">
+            <button id="btn-rebuild-matches" class="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition mr-4">
+                ⚠️ Rebuild Matches (Resets scores!)
+            </button>
+            <button id="btn-back-to-matches" class="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-700 transition">
+                Back to Matches
+            </button>
+        </div>
+    `;
 
-    return { winner };
+    managementSection.innerHTML = html;
+    
+    // Add Listeners para la sección de gestión
+    document.getElementById('btn-add-player')?.addEventListener('click', handleAddPlayer);
+    document.querySelectorAll('.btn-remove-player').forEach(btn => {
+        btn.addEventListener('click', handleRemovePlayer);
+    });
+    document.getElementById('btn-rebuild-matches')?.addEventListener('click', handleRebuildMatches);
+    document.getElementById('btn-back-to-matches')?.addEventListener('click', () => {
+        managementSection.classList.add('hidden');
+        matchesContainer.classList.remove('hidden');
+        standingsContainer.classList.remove('hidden');
+        playoffContainer.classList.remove('hidden');
+        renderMatches();
+    });
+    document.getElementById('btn-save-settings')?.addEventListener('click', handleSaveSettings);
 }
 
-// ---------------------------
-// RANKING SYSTEM
-// ---------------------------
+/**
+ * Añade un nuevo jugador.
+ */
+function handleAddPlayer() {
+    const name = document.getElementById('player-name-input').value.trim();
+    const group = document.getElementById('player-group-input').value.trim().toUpperCase();
 
-// Function to calculate standings for all players/teams across all groups
-function calculateStandings() {
-    const stats = {};
-    
-    const allCompetitors = new Set();
-    matches.forEach(match => {
-        const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
-        const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
-        allCompetitors.add(p1Name);
-        allCompetitors.add(p2Name);
-    });
-    
-    allCompetitors.forEach(competitorName => {
-        const match = matches.find(m => {
-            const p1Name = m.p1.constructor === Array ? m.p1.join(' / ') : m.p1;
-            const p2Name = m.p2.constructor === Array ? m.p2.join(' / ') : m.p2;
-            return p1Name === competitorName || p2Name === competitorName;
-        });
-        
-        stats[competitorName] = {
-            player: competitorName, 
-            matchesPlayed: 0,
-            matchesWon: 0,
-            gamesWon: 0,
-            gamesLost: 0,
-            gamesDiff: 0,
-            group: match ? match.group : 0 
-        };
-    });
-
-    // 3. Aggregate stats from completed matches (Group Matches only)
-    matches.forEach(match => {
-        const isCompleted = match.winner !== null;
-
-        const p1Name = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
-        const p2Name = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
-
-        let totalGamesWonP1 = 0;
-        let totalGamesWonP2 = 0;
-        
-        // Sum games across all sets for total games won/lost (for ranking criteria)
-        match.scores.forEach(set => {
-            totalGamesWonP1 += set[0] || 0;
-            totalGamesWonP2 += set[1] || 0;
-        });
-        
-        const winnerName = match.winner;
-
-        // Update stats for Competitor 1
-        if (stats[p1Name]) {
-            stats[p1Name].gamesWon += totalGamesWonP1;
-            stats[p1Name].gamesLost += totalGamesWonP2;
-            
-            if (isCompleted) {
-                stats[p1Name].matchesPlayed++;
-                stats[p1Name].matchesWon += (winnerName === p1Name ? 1 : 0);
-            }
-        }
-
-        // Update stats for Competitor 2
-        if (stats[p2Name]) {
-            stats[p2Name].gamesWon += totalGamesWonP2;
-            stats[p2Name].gamesLost += totalGamesWonP1;
-
-            if (isCompleted) {
-                stats[p2Name].matchesPlayed++;
-                stats[p2Name].matchesWon += (winnerName === p2Name ? 1 : 0);
-            }
-        }
-    });
-
-    // 4. Calculate Games Difference and convert to array
-    const standingsArray = Object.values(stats).map(stat => {
-        stat.gamesDiff = stat.gamesWon - stat.gamesLost;
-        return stat;
-    });
-
-    // 5. Sort (Ranking Criteria: 1. Matches Won, 2. Games Difference, 3. Games Won)
-    standingsArray.sort((a, b) => {
-        if (b.matchesWon !== a.matchesWon) {
-            return b.matchesWon - a.matchesWon; // Primary: Matches Won (Higher is better)
-        }
-        if (b.gamesDiff !== a.gamesDiff) {
-            return b.gamesDiff - a.gamesDiff; // Secondary: Games Diff (Higher is better)
-        }
-        if (b.gamesWon !== a.gamesWon) {
-             return b.gamesWon - a.gamesWon; // Tertiary: Games Won (Higher is better)
-        }
-        return a.player.localeCompare(b.player); 
-    });
-    
-    return standingsArray;
+    if (name && group) {
+        if (players.some(p => p.name === name)) {
+            showStatus("Player name already exists.", "red");
+            return;
+        }
+        players.push({ id: `p${players.length + 1}`, name: name, group: group, photoURL: null });
+        document.getElementById('player-name-input').value = '';
+        document.getElementById('player-group-input').value = '';
+        saveData(true);
+        renderPlayerManagement(); // Re-renderiza la lista
+        showStatus(`Player ${name} added to Group ${group}.`, "blue");
+    } else {
+        showStatus("Please enter both Name and Group.", "red");
+    }
 }
 
-// ---------------------------
-// STANDINGS RENDERING
-// ---------------------------
-
-function renderStandings(standingsArray) {
-    if (standingsArray.length === 0 || standingsArray.every(s => s.group === 0)) {
-        return '<p class="text-gray-500">No players registered or no matches have been played yet.</p>';
-    }
-    
-    const totalGroups = Math.max(...standingsArray.map(s => s.group));
-    let html = '';
-
-    // --- 1. Render Group Standings (if more than one group) ---
-    if (totalGroups > 1) {
-        html += `<h3 class="text-xl font-bold text-gray-700 mb-4 mt-6 border-b pb-2">Clasificación por Grupos</h3>`;
-        
-        const standingsByGroup = standingsArray.reduce((acc, stat) => {
-            acc[stat.group] = acc[stat.group] || [];
-            acc[stat.group].push(stat);
-            return acc;
-        }, {});
-
-        for (let g = 1; g <= totalGroups; g++) {
-            const groupStats = standingsByGroup[g];
-            if (!groupStats || groupStats.length === 0) continue;
-            
-            html += `<div class="mb-6 p-4 border border-indigo-100 rounded-lg bg-indigo-50">
-                <h4 class="text-lg font-semibold text-indigo-800 mb-3">Grupo ${g}</h4>
-                ${createStandingsTable(groupStats, false)}
-            </div>`;
-        }
-        
-        html += `<div class="mt-8 border-t pt-4"></div>`;
-    }
-
-    // --- 2. Render Global Standings (Group Phase Only) ---
-    html += `<h3 class="text-xl font-bold text-gray-700 mb-4 ${totalGroups <= 1 ? '' : 'mt-6'} border-b pb-2">Clasificación Global (Fase de Grupos)</h3>`;
-    html += createStandingsTable(standingsArray, true);
-    
-    return html;
+/**
+ * Elimina un jugador.
+ */
+function handleRemovePlayer(event) {
+    const playerName = event.target.dataset.playerName;
+    players = players.filter(p => p.name !== playerName);
+    saveData(true);
+    renderPlayerManagement();
+    showStatus(`Player ${playerName} removed.`, "red");
 }
 
-// Helper function to create the actual HTML table structure
-function createStandingsTable(statsArray, isGlobal) {
-    let html = `<div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${isGlobal ? 'Global Rank' : 'Group Rank'}</th>
-                    ${isGlobal ? `<th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Group</th>` : ''}
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${mode === 'doubles' ? 'Team' : 'Player'}</th>
-                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">M Won</th>
-                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">G Won</th>
-                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">G Lost</th>
-                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">G Diff</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">`;
-
-    statsArray.forEach((stat, index) => {
-        const playerInfo = getPlayerDisplayInfo(stat.player);
-        const playerAvatarHtml = playerInfo.photoURL
-            ? `<img src="${playerInfo.photoURL}" alt="${stat.player}" class="w-6 h-6 rounded-full object-cover mr-2 inline-block">`
-            : `<div class="w-6 h-6 rounded-full bg-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700 mr-2 inline-block">${stat.player.charAt(0)}</div>`;
-
-        html += `<tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
-            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">${index + 1}</td>
-            ${isGlobal ? `<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${stat.group || '-'}</td>` : ''}
-            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                ${playerAvatarHtml} ${stat.player}
-            </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.matchesPlayed > 0 ? stat.matchesWon : '0'}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.gamesWon}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center">${stat.gamesLost}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center font-bold text-${stat.gamesDiff >= 0 ? 'green-600' : 'red-600'}">${stat.gamesDiff}</td>
-        </tr>`;
-    });
-
-    html += `</tbody></table></div>`;
-    return html;
+/**
+ * Reconstruye todos los partidos y reinicia los marcadores.
+ */
+function handleRebuildMatches() {
+    if (confirm("WARNING: This will delete all current match scores and regenerate all group matches. Are you sure?")) {
+        generateMatches();
+        playoffMatches = [];
+        currentStage = 'group';
+        currentStep = 'groups';
+        saveData(false);
+        // Volver a la vista de partidos
+        document.getElementById('management-section').classList.add('hidden');
+        matchesContainer.classList.remove('hidden');
+        standingsContainer.classList.remove('hidden');
+        playoffContainer.classList.remove('hidden');
+        renderMatches();
+        showStatus("Matches rebuilt and scores reset.", "red");
+    }
 }
 
-function renderPlayoffs(playoffMatches) {
-    let html = `<div class="mt-8">
-        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Fase Eliminatoria (Top 4)</h3>
-        <p class="text-sm text-gray-600 mb-4">Los partidos son generados automáticamente en base a la Clasificación Global de la Fase de Grupos. **Esta fase requiere ganar 2 sets (Mejor de 3).**</p>
-        <div id="playoff-match-list" class="space-y-4">`;
+/**
+ * Guarda la configuración de reglas del partido.
+ */
+function handleSaveSettings() {
+    const newSetsToWin = parseInt(document.getElementById('sets-to-win').value);
+    const newGamesPerSet = parseInt(document.getElementById('games-per-set').value);
 
-    playoffMatches.forEach(match => {
-        html += `<div id="match-card-${match.id}">
-            ${renderMatchCard(match)}
-        </div>`;
-    });
-
-    html += `</div></div>`;
-    return html;
+    if (newSetsToWin >= 1 && newSetsToWin <= 5 && newGamesPerSet >= 4 && newGamesPerSet <= 7) {
+        maxSetsToWin = newSetsToWin;
+        maxGamesPerSet = newGamesPerSet;
+        saveData(false);
+        showStatus(`Match rules updated: Win by ${maxSetsToWin} sets, ${maxGamesPerSet} games per set.`, "green");
+    } else {
+        showStatus("Invalid rule settings. Sets (1-5), Games (4-7).", "red");
+    }
 }
 
-function renderFinalRankings(standings) {
-    const finalMatch = playoffMatches.find(m => m.stage === 'Final');
-    const thirdPlaceMatch = playoffMatches.find(m => m.stage === '3rd Place Match');
+// --- 8. INICIALIZACIÓN ---
 
-    if (!finalMatch || !thirdPlaceMatch || finalMatch.winner === null || thirdPlaceMatch.winner === null) {
-        return `<p class="mt-6 text-gray-600 font-semibold border-t pt-4">Complete los partidos de la Fase Eliminatoria para ver el Ranking Final (1º a 4º).</p>`;
-    }
+function init() {
+    loadData();
+    // Inicializar listeners globales (que no dependen del renderizado de tarjetas)
+    document.getElementById('btn-toggle-stage').addEventListener('click', toggleStage);
+    document.getElementById('btn-manage-players').addEventListener('click', renderPlayerManagement);
+    
+    // Configurar el texto inicial del botón de fase
+    document.getElementById('btn-toggle-stage').textContent = currentStage === 'group' ? '🚀 Go to Playoff Stage' : '⬅️ Back to Group Stage';
 
-    const rank1 = finalMatch.winner;
-    const rank2 = finalMatch.loser;
-    const rank3 = thirdPlaceMatch.winner;
-    const rank4 = thirdPlaceMatch.loser;
-    
-    const top4Players = [rank1, rank2, rank3, rank4];
-    const remainingStandings = standings.filter(s => !top4Players.includes(s.player));
-
-    let html = `<div class="mt-8 border-t pt-4">
-        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Clasificación Final del Torneo (1º a ${standings.length}º)</h3>
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Pos.</th>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">${mode === 'doubles' ? 'Team' : 'Player'}</th>
-                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Group</th>
-                    <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Result</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">`;
-
-    [[1, rank1, '🏆 Champion'], [2, rank2, '🥈 Runner-Up'], [3, rank3, '🥉 3rd Place'], [4, rank4, '4th Place']]
-    .forEach(([rank, player, result], index) => {
-        const playerStat = standings.find(s => s.player === player);
-        const playerInfo = getPlayerDisplayInfo(player); // Obtener info de foto
-        const playerAvatarHtml = playerInfo.photoURL
-            ? `<img src="${playerInfo.photoURL}" alt="${player}" class="w-6 h-6 rounded-full object-cover mr-2 inline-block">`
-            : `<div class="w-6 h-6 rounded-full bg-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700 mr-2 inline-block">${player.charAt(0)}</div>`;
-
-        const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-        html += `<tr class="${bgColor}">
-            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-indigo-700 font-bold">${rank}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                ${playerAvatarHtml} ${player}
-            </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-500">${playerStat ? playerStat.group : '-'}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center font-bold text-green-700">${result}</td>
-        </tr>`;
-    });
-
-    remainingStandings.forEach((stat, index) => {
-        const rank = 5 + index;
-        const bgColor = (4 + index) % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-        const playerInfo = getPlayerDisplayInfo(stat.player); // Obtener info de foto
-        const playerAvatarHtml = playerInfo.photoURL
-            ? `<img src="${playerInfo.photoURL}" alt="${stat.player}" class="w-6 h-6 rounded-full object-cover mr-2 inline-block">`
-            : `<div class="w-6 h-6 rounded-full bg-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700 mr-2 inline-block">${stat.player.charAt(0)}</div>`;
-
-        html += `<tr class="${bgColor}">
-            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-600">${rank}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                ${playerAvatarHtml} ${stat.player}
-            </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-500">${stat.group}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-500">5th+ (Group Rank)</td>
-        </tr>`;
-    });
-
-    html += `</tbody></table></div>`;
-    return html;
+    renderMatches();
 }
+
+// Iniciar la aplicación
+init();
