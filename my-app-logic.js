@@ -1,12 +1,18 @@
 // my-app-logic.js
 // Script para gestionar un torneo de tenis/pádel (Grupos y Eliminatorias)
+// Versión adaptada para Cloud/Firebase
 
 // --- 1. CONFIGURACIÓN INICIAL ---
 let players = [];
 let matches = [];
 let playoffMatches = [];
-let maxSetsToWin = 2; // Por ejemplo, ganar 2 sets de 3.
-let maxGamesPerSet = 6; // Por ejemplo, sets de 6 juegos (con desempate si es 6-6)
+
+// Configuración de reglas (se actualiza desde el HTML)
+let maxPlayers = 10;
+let numGroups = 2;
+let maxSetsToWin = 2; // Para ganar el partido (ej: 2 de 3)
+let maxGamesPerSet = 6; // Para ganar el set (ej: 6-4)
+let matchType = 'singles';
 
 // El estado del torneo determina qué fase renderizar
 let currentStage = 'group'; // 'group' o 'playoff'
@@ -17,74 +23,108 @@ const matchesContainer = document.getElementById('matches-container');
 const standingsContainer = document.getElementById('standings-container');
 const playoffContainer = document.getElementById('playoff-container');
 const statusMessage = document.getElementById('status-message');
-const playerInput = document.getElementById('player-name-input');
 
-// --- 2. GESTIÓN DE DATOS Y ESTADO ---
+// --- 2. GESTIÓN DE DATOS Y ESTADO (ADAPTADO A CLOUD) ---
 
 /**
- * Carga los datos guardados o inicializa los datos por defecto.
+ * Carga los datos guardados, priorizando Cloud si está disponible.
  */
-function loadData() {
-    const savedPlayers = localStorage.getItem('tournamentPlayers');
-    const savedMatches = localStorage.getItem('tournamentMatches');
-    const savedPlayoffMatches = localStorage.getItem('tournamentPlayoffMatches');
-    const savedStage = localStorage.getItem('currentStage');
-    const savedStep = localStorage.getItem('currentStep');
-    const savedMaxSets = localStorage.getItem('maxSetsToWin');
-    const savedMaxGames = localStorage.getItem('maxGamesPerSet');
+async function loadData() {
+    let dataLoaded = false;
+    let data = {};
 
-    if (savedPlayers && savedMatches) {
-        players = JSON.parse(savedPlayers);
-        matches = JSON.parse(savedMatches);
-        playoffMatches = savedPlayoffMatches ? JSON.parse(savedPlayoffMatches) : [];
-        currentStage = savedStage || 'group';
-        currentStep = savedStep || 'groups';
-        maxSetsToWin = parseInt(savedMaxSets) || 2;
-        maxGamesPerSet = parseInt(savedMaxGames) || 6;
+    // 1. Intentar cargar desde Cloud (Firebase)
+    if (window.isCloudMode && window.db && window.userId) {
+        try {
+            const docRef = window.doc(window.db, "tournaments", window.userId);
+            const docSnap = await window.getDoc(docRef);
 
-        // Asegurarse de que los nombres de los jugadores en los partidos sean string
-        // Esto previene errores si se guardan como objetos en alguna versión antigua.
-        matches.forEach(m => {
-            if (m.p1 && typeof m.p1 === 'object' && m.p1.name) m.p1 = m.p1.name;
-            if (m.p2 && typeof m.p2 === 'object' && m.p2.name) m.p2 = m.p2.name;
-        });
-        
-    } else {
-        // Datos de ejemplo
-        players = [
-            { id: 'p1', name: 'Rafa Nadal', group: 'A', photoURL: 'https://i.ibb.co/6P0jL6y/rafa.jpg' },
-            { id: 'p2', name: 'Roger Federer', group: 'A', photoURL: 'https://i.ibb.co/wJ10L3b/roger.jpg' },
-            { id: 'p3', name: 'Novak Djokovic', group: 'B', photoURL: 'https://i.ibb.co/Xz9tG9q/novak.jpg' },
-            { id: 'p4', name: 'Andy Murray', group: 'B', photoURL: 'https://i.ibb.co/5cQG9rS/andy.jpg' },
-            { id: 'p5', name: 'Daniil Medvedev', group: 'C' },
-            { id: 'p6', name: 'Alexander Zverev', group: 'C' },
-        ];
-        generateMatches();
-        showStatus("Tournament initialized with example data.", "blue");
+            if (docSnap.exists()) {
+                data = docSnap.data();
+                dataLoaded = true;
+                showTournamentId(window.userId);
+                showStatus("Tournament data loaded from Cloud.", "blue");
+            } else {
+                showStatus("No cloud data found. Initializing new tournament.", "blue");
+            }
+        } catch (e) {
+            console.error("Error loading cloud data: ", e);
+            showStatus("Error connecting to cloud. Loading local data.", "red");
+        }
+    }
+
+    // 2. Si no se cargó de Cloud o si no estamos en modo Cloud, cargar localmente
+    if (!dataLoaded) {
+        const localData = localStorage.getItem('tournamentData');
+        if (localData) {
+            data = JSON.parse(localData);
+        }
+    }
+
+    // Aplicar los datos cargados
+    if (Object.keys(data).length > 0) {
+        players = data.players || [];
+        matches = data.matches || [];
+        playoffMatches = data.playoffMatches || [];
+        currentStage = data.currentStage || 'group';
+        currentStep = data.currentStep || 'groups';
+        maxPlayers = parseInt(data.maxPlayers) || 10;
+        numGroups = parseInt(data.numGroups) || 2;
+        maxSetsToWin = parseInt(data.maxSetsToWin) || 2;
+        maxGamesPerSet = parseInt(data.maxGamesPerSet) || 6;
+        matchType = data.matchType || 'singles';
     }
 }
 
 /**
- * Guarda el estado actual del torneo en el almacenamiento local.
- * @param {boolean} silent Si es true, no muestra el mensaje de estado.
+ * Guarda el estado actual del torneo en Cloud y en el almacenamiento local.
  */
 function saveData(silent = false) {
-    localStorage.setItem('tournamentPlayers', JSON.stringify(players));
-    localStorage.setItem('tournamentMatches', JSON.stringify(matches));
-    localStorage.setItem('tournamentPlayoffMatches', JSON.stringify(playoffMatches));
-    localStorage.setItem('currentStage', currentStage);
-    localStorage.setItem('currentStep', currentStep);
-    localStorage.setItem('maxSetsToWin', maxSetsToWin.toString());
-    localStorage.setItem('maxGamesPerSet', maxGamesPerSet.toString());
-    if (!silent) {
-        showStatus("Data saved successfully.", "green");
+    const data = {
+        players,
+        matches,
+        playoffMatches,
+        currentStage,
+        currentStep,
+        maxPlayers,
+        numGroups,
+        maxSetsToWin,
+        maxGamesPerSet,
+        matchType,
+        timestamp: new Date().toISOString()
+    };
+
+    // 1. Guardar localmente
+    localStorage.setItem('tournamentData', JSON.stringify(data));
+
+    // 2. Guardar en Cloud si está disponible
+    if (window.isCloudMode && window.db && window.userId) {
+        const docRef = window.doc(window.db, "tournaments", window.userId);
+        window.setDoc(docRef, data)
+            .then(() => {
+                if (!silent) showStatus("Data synced to Cloud and saved locally.", "green");
+            })
+            .catch((e) => {
+                console.error("Error saving cloud data: ", e);
+                if (!silent) showStatus("Error syncing to Cloud. Data saved locally only.", "orange");
+            });
+    } else {
+        if (!silent) showStatus("Data saved locally.", "green");
+    }
+}
+
+/**
+ * Muestra el ID del torneo en el header.
+ */
+function showTournamentId(id) {
+    const display = document.getElementById('tournament-id-display');
+    if (display) {
+        display.innerHTML = `**Tournament ID:** ${id.substring(0, 8)}...`;
     }
 }
 
 /**
  * Muestra un mensaje temporal de estado.
- * @param {string} message El mensaje a mostrar.
- * @param {string} type El tipo de mensaje (ej: 'green', 'red', 'blue', 'indigo', 'orange').
  */
 function showStatus(message, type) {
     const classMap = {
@@ -104,7 +144,226 @@ function showStatus(message, type) {
     }, 3000);
 }
 
-// --- 3. LÓGICA DEL TORNEO ---
+// --- 3. GESTIÓN DE JUGADORES Y CONFIGURACIÓN ---
+
+/**
+ * Actualiza la UI de configuración con los valores actuales.
+ */
+function updateConfigUI() {
+    document.getElementById('max-jugadores-actual').textContent = maxPlayers;
+    document.getElementById('max-jugadores-input').value = maxPlayers;
+    document.getElementById('num-grupos-actual').textContent = numGroups;
+    document.getElementById('num-grupos-input').value = numGroups;
+    document.getElementById('max-games-set-actual').textContent = maxGamesPerSet;
+    document.getElementById('max-games-set-input').value = maxGamesPerSet;
+    document.getElementById('match-type').value = matchType;
+    document.getElementById('max-participantes-display').textContent = maxPlayers;
+    
+    renderPlayerList();
+    
+    // Configurar el texto inicial del botón de fase
+    const btnToggle = document.getElementById('btn-toggle-stage');
+    if (btnToggle) {
+        btnToggle.textContent = currentStage === 'group' ? '🚀 Go to Playoff Stage' : '⬅️ Back to Group Stage';
+    }
+}
+
+/**
+ * Renderiza la lista de jugadores registrados.
+ */
+function renderPlayerList() {
+    const listContainer = document.getElementById('lista-participantes');
+    const countDisplay = document.getElementById('contador-participantes');
+    const countListDisplay = document.getElementById('contador-participantes-list');
+
+    if (listContainer && countDisplay && countListDisplay) {
+        listContainer.innerHTML = players.map(p => `
+            <li class="flex justify-between items-center p-1 bg-gray-50 rounded">
+                <span class="truncate">${p.name} (G${p.group})</span>
+                <button data-player-id="${p.id}" class="btn-remove-player text-red-500 hover:text-red-700 ml-2">X</button>
+            </li>
+        `).join('');
+        
+        countDisplay.textContent = players.length;
+        countListDisplay.textContent = players.length;
+
+        // Añadir listeners para eliminar jugadores
+        document.querySelectorAll('.btn-remove-player').forEach(btn => {
+            btn.addEventListener('click', handleRemovePlayer);
+        });
+    }
+}
+
+/**
+ * Gestiona el botón de establecer el máximo de jugadores.
+ */
+function handleSetMaxPlayers() {
+    const input = document.getElementById('max-jugadores-input');
+    const newMax = parseInt(input.value);
+    
+    if (newMax >= 4 && newMax % 2 === 0) {
+        maxPlayers = newMax;
+        updateConfigUI();
+        saveData(false);
+    } else {
+        showStatus("Max Players must be an even number, minimum 4.", "red");
+        input.value = maxPlayers; // Restaurar el valor
+    }
+}
+
+/**
+ * Gestiona el botón de establecer el número de grupos.
+ */
+function handleSetNumGroups() {
+    const input = document.getElementById('num-grupos-input');
+    const newNumGroups = parseInt(input.value);
+
+    if (newNumGroups >= 1 && newNumGroups <= maxPlayers / 2 && maxPlayers % newNumGroups === 0) {
+        numGroups = newNumGroups;
+        updateConfigUI();
+        saveData(false);
+    } else {
+        showStatus(`Groups must be between 1 and ${maxPlayers / 2}, and must divide total players evenly.`, "red");
+        input.value = numGroups; // Restaurar el valor
+    }
+}
+
+/**
+ * Gestiona el botón de establecer los juegos por set.
+ */
+function handleSetMaxGamesPerSet() {
+    const input = document.getElementById('max-games-set-input');
+    const newGames = parseInt(input.value);
+
+    // Permitir 4, 6, 8, etc. (juegos para ganar)
+    if (newGames >= 4 && newGames % 2 === 0) {
+        maxGamesPerSet = newGames;
+        updateConfigUI();
+        saveData(false);
+    } else {
+        showStatus("Games per set must be an even number (e.g., 4, 6, 8).", "red");
+        input.value = maxGamesPerSet;
+    }
+}
+
+/**
+ * Gestiona el cambio de tipo de partido.
+ */
+function handleMatchTypeChange(event) {
+    matchType = event.target.value;
+    saveData(false);
+}
+
+/**
+ * Gestiona el botón de agregar participante.
+ */
+function handleAddPlayer() {
+    const nameInput = document.getElementById('nombre-input');
+    const name = nameInput.value.trim();
+
+    if (!name) {
+        showStatus("Please enter a player name.", "red");
+        return;
+    }
+
+    if (players.length >= maxPlayers) {
+        showStatus(`Maximum player limit (${maxPlayers}) reached.`, "red");
+        return;
+    }
+    
+    if (players.some(p => p.name === name)) {
+        showStatus("Player name already exists.", "red");
+        return;
+    }
+
+    // Asignar el grupo automáticamente
+    const groupLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, numGroups);
+    const groupIndex = players.length % numGroups;
+    const group = groupLetters[groupIndex];
+
+    players.push({ 
+        id: crypto.randomUUID(), 
+        name: name, 
+        group: group, 
+        photoURL: null // La subida de foto requeriría lógica de Storage no incluida
+    });
+
+    nameInput.value = '';
+    renderPlayerList();
+    saveData(true);
+    showStatus(`Player ${name} added to Group ${group}.`, "blue");
+}
+
+/**
+ * Gestiona la eliminación de un jugador.
+ */
+function handleRemovePlayer(event) {
+    const playerId = event.target.dataset.playerId;
+    players = players.filter(p => p.id !== playerId);
+    
+    // Reajustar grupos
+    players.forEach((p, index) => {
+        const groupLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, numGroups);
+        p.group = groupLetters[index % numGroups];
+    });
+
+    // Reiniciar partidos si ya se habían generado
+    if (matches.length > 0) {
+        matches = [];
+        playoffMatches = [];
+        showStatus("Player removed. Matches reset, please regenerate.", "orange");
+    }
+    
+    renderPlayerList();
+    renderMatches();
+    saveData(false);
+}
+
+/**
+ * Gestiona el botón de generar partidos.
+ */
+function handleGenerateMatches() {
+    if (players.length === 0 || players.length % 2 !== 0) {
+        showStatus("Need an even number of players (min 4) to generate matches.", "red");
+        return;
+    }
+    
+    if (players.length < 4) {
+        showStatus("Minimum 4 players required for a full group round robin.", "red");
+        return;
+    }
+
+    // Generar partidos y reiniciar
+    generateMatches();
+    playoffMatches = [];
+    currentStage = 'group';
+    currentStep = 'groups';
+    
+    renderMatches();
+    saveData(false);
+    showStatus(`Generated ${matches.length} group matches.`, "indigo");
+}
+
+/**
+ * Reinicia completamente el torneo.
+ */
+function handleResetTournament() {
+    if (confirm("WARNING: This will delete ALL tournament data (players, scores, settings). Are you sure you want to reset?")) {
+        localStorage.removeItem('tournamentData');
+        localStorage.removeItem('current-tournament-id');
+        window.userId = crypto.randomUUID(); // Generar un nuevo ID de torneo local
+        
+        // Limpiar variables
+        players = [];
+        matches = [];
+        playoffMatches = [];
+        
+        // Recargar el estado inicial de la aplicación
+        window.location.reload(); 
+    }
+}
+
+// --- 4. LÓGICA CENTRAL DEL TORNEO (Mantenida) ---
 
 /**
  * Genera el enfrentamiento de todos contra todos dentro de cada grupo.
@@ -139,24 +398,17 @@ function generateMatches() {
 
 /**
  * Calcula el ganador del partido basado en los sets ganados.
- * @param {object} match El objeto partido.
- * @returns {object} {winner: string|null, p1Sets: number, p2Sets: number}
  */
 function checkMatchWinner(match) {
     let p1Sets = 0;
     let p2Sets = 0;
     let p1GamesWon = 0;
     let p2GamesWon = 0;
-    let allScoresValid = true;
 
     match.scores.forEach(([score1, score2]) => {
         const g1 = score1 !== undefined ? score1 : null;
         const g2 = score2 !== undefined ? score2 : null;
         
-        if (g1 === null || g2 === null) {
-            allScoresValid = false;
-        }
-
         if (g1 !== null && g2 !== null) {
             p1GamesWon += g1;
             p2GamesWon += g2;
@@ -165,8 +417,11 @@ function checkMatchWinner(match) {
 
             // Regla de victoria del set: 
             // Debe alcanzar al menos `maxGamesPerSet` (ej: 6) Y tener una diferencia de al menos 2.
-            // O, si es un tie-break (7-6), se gana con 7.
-            const isSetCompleted = (g1 >= maxGamesPerSet || g2 >= maxGamesPerSet) && gamesDiff >= 2 || (g1 === maxGamesPerSet + 1 && g2 === maxGamesPerSet) || (g2 === maxGamesPerSet + 1 && g1 === maxGamesPerSet);
+            // O, si es un tie-break (7-6), se gana con maxGamesPerSet + 1.
+            const isSetCompleted = 
+                (g1 >= maxGamesPerSet || g2 >= maxGamesPerSet) && gamesDiff >= 2 || 
+                (g1 === maxGamesPerSet + 1 && g2 === maxGamesPerSet) || 
+                (g2 === maxGamesPerSet + 1 && g1 === maxGamesPerSet);
             
             if (isSetCompleted) {
                 if (g1 > g2) {
@@ -179,11 +434,16 @@ function checkMatchWinner(match) {
     });
 
     let winner = null;
-    const setsNeededToWin = maxSetsToWin;
+    const setsNeededToWin = currentStage === 'group' ? 1 : maxSetsToWin; 
+    // Usamos 1 set en fase de grupos solo por simplicidad de ejemplo, 
+    // pero la lógica real debería ser maxSetsToWin para ambos si se desea.
+    // Usaré maxSetsToWin para ambos por coherencia.
+    const setsNeededToWinMatch = maxSetsToWin;
 
-    if (p1Sets >= setsNeededToWin) {
+
+    if (p1Sets >= setsNeededToWinMatch) {
         winner = match.p1;
-    } else if (p2Sets >= setsNeededToWin) {
+    } else if (p2Sets >= setsNeededToWinMatch) {
         winner = match.p2;
     }
 
@@ -191,84 +451,73 @@ function checkMatchWinner(match) {
 }
 
 /**
- * Genera la estructura de la fase eliminatoria (cuartos, semis, final).
+ * Genera la estructura de la fase eliminatoria (cuartos, semis, final). (Simplificado)
  */
 function generatePlayoffStructure(standings) {
-    // Tomar los 8 mejores o los 4 mejores si hay menos grupos/jugadores.
-    // Ejemplo: 2 mejores de cada grupo A, B, C (si hubiera 3 grupos)
-    // Para 2 grupos (A y B) y 6 jugadores, tomamos 2 de cada uno y llenamos con los mejores terceros.
-    
-    // Simplificado: Tomar los 8 mejores clasificados
+    // Implementación simplificada... (lógica similar a la enviada anteriormente)
     const topPlayers = standings.sort((a, b) => b.points - a.points || (b.gamesWon - b.gamesLost) - (a.gamesWon - a.gamesLost)).slice(0, 8);
     
-    // Si hay menos de 8 jugadores, ajusta la estructura.
     if (topPlayers.length < 4) {
-        showStatus("Not enough players for playoffs (min 4 recommended).", "orange");
+        showStatus("Not enough players (min 4 required) to start playoffs.", "orange");
         return;
     }
 
     playoffMatches = [];
     
-    // Cuartos de Final (QF) - Solo si hay 8 jugadores
-    if (topPlayers.length === 8) {
-        playoffMatches.push(
-            // QF1
-            { id: 'QF1', stage: 'Quarter Final 1', p1: topPlayers[0].name, p2: topPlayers[7].name, scores: [[undefined, undefined]], winner: null }, 
-            // QF2
-            { id: 'QF2', stage: 'Quarter Final 2', p1: topPlayers[3].name, p2: topPlayers[4].name, scores: [[undefined, undefined]], winner: null }, 
-            // QF3
-            { id: 'QF3', stage: 'Quarter Final 3', p1: topPlayers[2].name, p2: topPlayers[5].name, scores: [[undefined, undefined]], winner: null }, 
-            // QF4
-            { id: 'QF4', stage: 'Quarter Final 4', p1: topPlayers[1].name, p2: topPlayers[6].name, scores: [[undefined, undefined]], winner: null }
-        );
-    }
-    
-    // Semifinales (SF) - 4 jugadores (ganadores de QF o top 4 si no hay QF)
-    let p1SF1 = topPlayers.length === 8 ? 'Winner QF1' : topPlayers[0].name;
-    let p2SF1 = topPlayers.length === 8 ? 'Winner QF2' : topPlayers[3].name;
-    let p1SF2 = topPlayers.length === 8 ? 'Winner QF3' : topPlayers[1].name;
-    let p2SF2 = topPlayers.length === 8 ? 'Winner QF4' : topPlayers[2].name;
+    // Generar 4 partidos si hay 8 (QF), o 2 si hay 4 (SF directas)
+    // ... (lógica de generación de playoffs) ...
+    // ... (omitido por espacio, asume que usa la misma lógica anterior) ...
 
-    playoffMatches.push(
-        // SF1
-        { id: 'SF1', stage: 'Semi Final 1', p1: p1SF1, p2: p2SF1, scores: [[undefined, undefined]], winner: null, loser: null }, 
-        // SF2
-        { id: 'SF2', stage: 'Semi Final 2', p1: p1SF2, p2: p2SF2, scores: [[undefined, undefined]], winner: null, loser: null }
-    );
+    const isEightPlayers = topPlayers.length === 8;
+    const finalCut = isEightPlayers ? topPlayers : topPlayers.slice(0, 4);
+
+    let pList = isEightPlayers 
+        ? [finalCut[0].name, finalCut[7].name, finalCut[3].name, finalCut[4].name, 
+           finalCut[2].name, finalCut[5].name, finalCut[1].name, finalCut[6].name]
+        : [finalCut[0].name, finalCut[3].name, finalCut[1].name, finalCut[2].name];
+
+    let matchCount = 1;
+    let nextStageMatches = [];
+    let nextStagePlaceholders = [];
+
+    // QF (si hay 8)
+    if (isEightPlayers) {
+        for (let i = 0; i < 4; i++) {
+            const id = `QF${i + 1}`;
+            nextStagePlaceholders.push(`Winner ${id}`);
+            playoffMatches.push({ id: id, stage: `Quarter Final ${i + 1}`, p1: pList[i * 2], p2: pList[i * 2 + 1], scores: [[undefined, undefined]], winner: null, loser: null });
+        }
+    } else {
+        // SF directa si hay 4
+        nextStagePlaceholders.push('Winner SF1', 'Winner SF2');
+        pList = [finalCut[0].name, finalCut[3].name, finalCut[1].name, finalCut[2].name];
+    }
+
+    // SF
+    const sfIndex = isEightPlayers ? 0 : 1;
+    for (let i = 0; i < 2; i++) {
+        const id = `SF${i + 1}`;
+        const p1 = isEightPlayers ? nextStagePlaceholders[i * 2] : pList[i * 2];
+        const p2 = isEightPlayers ? nextStagePlaceholders[i * 2 + 1] : pList[i * 2 + 1];
+        playoffMatches.push({ id: id, stage: `Semi Final ${i + 1}`, p1: p1, p2: p2, scores: [[undefined, undefined]], winner: null, loser: null });
+    }
 
     // Final
-    playoffMatches.push(
-        // Final
-        { id: 'FINAL', stage: 'Final', p1: 'Winner SF1', p2: 'Winner SF2', scores: [[undefined, undefined]], winner: null, loser: null }
-    );
+    playoffMatches.push({ id: 'FINAL', stage: 'Final', p1: 'Winner SF1', p2: 'Winner SF2', scores: [[undefined, undefined]], winner: null, loser: null });
     
-    // Cambiar a la etapa de playoffs
     currentStage = 'playoff';
     currentStep = 'playoff';
     saveData(true);
     showStatus("Playoff structure generated and saved.", "blue");
 }
 
-
 /**
  * Actualiza los nombres de los jugadores en la siguiente fase eliminatoria.
- * @param {object} currentMatch El partido que acaba de terminar.
  */
 function updateNextPlayoffMatch(currentMatch) {
     const winnerName = currentMatch.winner;
-    const loserName = currentMatch.loser;
-    let winnerPlaceholder = '';
-    let loserPlaceholder = '';
+    const winnerPlaceholder = `Winner ${currentMatch.id}`;
 
-    if (currentMatch.id.startsWith('QF')) {
-        winnerPlaceholder = `Winner ${currentMatch.id}`;
-        loserPlaceholder = `Loser ${currentMatch.id}`;
-    } else if (currentMatch.id.startsWith('SF')) {
-        winnerPlaceholder = `Winner ${currentMatch.id}`;
-        loserPlaceholder = `Loser ${currentMatch.id}`;
-    }
-
-    // Busca los partidos donde el placeholder del ganador deba ser reemplazado
     playoffMatches.forEach(nextMatch => {
         if (nextMatch.p1 === winnerPlaceholder) {
             nextMatch.p1 = winnerName;
@@ -276,73 +525,51 @@ function updateNextPlayoffMatch(currentMatch) {
         if (nextMatch.p2 === winnerPlaceholder) {
             nextMatch.p2 = winnerName;
         }
-        // Para el partido por el 3er lugar (opcional, no implementado aquí)
-        // if (nextMatch.p1 === loserPlaceholder) {
-        //     nextMatch.p1 = loserName;
-        // }
-        // if (nextMatch.p2 === loserPlaceholder) {
-        //     nextMatch.p2 = loserName;
-        // }
     });
 }
 
-// --- 4. CÁLCULO DE POSICIONES (STANDINGS) ---
-
 /**
  * Calcula las posiciones y estadísticas de los jugadores en la fase de grupos.
- * @returns {Array} Lista de objetos de posiciones.
  */
 function calculateStandings() {
     const playerStats = {};
-
-    // Inicializar estadísticas de los jugadores
     players.forEach(p => {
         playerStats[p.name] = {
             name: p.name,
             group: p.group,
-            matchesPlayed: 0,
-            matchesWon: 0,
-            matchesLost: 0,
-            setsWon: 0,
-            setsLost: 0,
-            gamesWon: 0,
-            gamesLost: 0,
-            points: 0, // 3 por victoria, 1 por sets perdidos (opcional, aquí 3 por W, 0 por L)
+            matchesPlayed: 0, matchesWon: 0, matchesLost: 0,
+            setsWon: 0, setsLost: 0,
+            gamesWon: 0, gamesLost: 0,
+            points: 0,
         };
     });
 
-    // Procesar resultados de los partidos de grupo
     matches.forEach(match => {
+        // ... (Lógica de cálculo de standings - similar a la anterior) ...
         const p1Name = match.p1;
         const p2Name = match.p2;
-
         const result = checkMatchWinner(match);
         const p1Sets = result.p1Sets;
         const p2Sets = result.p2Sets;
         const p1GamesWon = result.p1GamesWon;
         const p2GamesWon = result.p2GamesWon;
 
-        // Si el partido está completo
         if (match.winner !== null) {
-            // Stats para P1
             playerStats[p1Name].matchesPlayed++;
+            playerStats[p2Name].matchesPlayed++;
             playerStats[p1Name].setsWon += p1Sets;
             playerStats[p1Name].setsLost += p2Sets;
-            playerStats[p1Name].gamesWon += p1GamesWon;
-            playerStats[p1Name].gamesLost += p2GamesWon;
-            
-            // Stats para P2
-            playerStats[p2Name].matchesPlayed++;
             playerStats[p2Name].setsWon += p2Sets;
             playerStats[p2Name].setsLost += p1Sets;
+            playerStats[p1Name].gamesWon += p1GamesWon;
+            playerStats[p1Name].gamesLost += p2GamesWon;
             playerStats[p2Name].gamesWon += p2GamesWon;
             playerStats[p2Name].gamesLost += p1GamesWon;
 
-            // Puntos
             if (match.winner === p1Name) {
                 playerStats[p1Name].matchesWon++;
                 playerStats[p2Name].matchesLost++;
-                playerStats[p1Name].points += 3; // 3 puntos por victoria
+                playerStats[p1Name].points += 3;
             } else if (match.winner === p2Name) {
                 playerStats[p2Name].matchesWon++;
                 playerStats[p1Name].matchesLost++;
@@ -351,18 +578,12 @@ function calculateStandings() {
         }
     });
 
-    // Ordenar posiciones: 1. Puntos, 2. Diferencia de sets (SW - SL), 3. Diferencia de juegos (GW - GL)
     const standingsArray = Object.values(playerStats);
     standingsArray.sort((a, b) => {
-        // 1. Puntos
         if (b.points !== a.points) return b.points - a.points;
-        
-        // 2. Diferencia de Sets
         const aSetDiff = a.setsWon - a.setsLost;
         const bSetDiff = b.setsWon - b.setsLost;
         if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
-
-        // 3. Diferencia de Juegos
         const aGameDiff = a.gamesWon - a.gamesLost;
         const bGameDiff = b.gamesWon - b.gamesLost;
         return bGameDiff - aGameDiff;
@@ -372,11 +593,8 @@ function calculateStandings() {
 }
 
 
-// --- 5. RENDERIZADO Y UI ---
+// --- 5. RENDERIZADO Y UI (Mantenida) ---
 
-/**
- * Obtiene la información de display (nombre y foto) para un jugador o equipo.
- */
 function getPlayerDisplayInfo(p) {
     const pName = typeof p === 'string' ? p : p.name;
     const player = players.find(pl => pl.name === pName);
@@ -384,31 +602,20 @@ function getPlayerDisplayInfo(p) {
     if (player) {
         return { name: player.name, photoURL: player.photoURL };
     }
-    // Para placeholders de playoffs
     return { name: pName, photoURL: null };
 }
 
-/**
- * Renders a generic match card (Set/Game Inputs)
- * @param {object} match El objeto partido.
- * @returns {string} HTML de la tarjeta.
- */
 function renderMatchCard(match) {
     const isCompleted = match.winner !== null;
-    
-    // Obtener información del jugador/equipo incluyendo foto
     const p1Info = getPlayerDisplayInfo(match.p1);
     const p2Info = getPlayerDisplayInfo(match.p2);
-    
     const p1Name = p1Info.name;
     const p2Name = p2Info.name;
     
-    // Helper para generar el avatar
     const getAvatarHtml = (info) => {
         if (info.photoURL) {
             return `<img src="${info.photoURL}" alt="${info.name}" class="w-8 h-8 rounded-full object-cover mr-2 inline-block shadow">`;
         }
-        // Evita mostrar iniciales para placeholders de playoffs
         if (info.name.startsWith('Winner') || info.name.startsWith('Loser')) {
              return `<span class="mr-2 inline-block"></span>`;
         }
@@ -417,7 +624,6 @@ function renderMatchCard(match) {
     };
     
     const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
-    
     const isPlayoff = match.stage;
     const stageInfo = isPlayoff ? match.stage : `Group ${match.group}`;
     const inputClass = isPlayoff ? 'playoff-set-input' : 'group-set-input';
@@ -462,31 +668,19 @@ function renderMatchCard(match) {
     return cardHtml;
 }
 
-/**
- * Helper para renderizar una fila de la tabla de puntuación (un jugador).
- * @param {object} match Objeto partido.
- * @param {string} pKey 'p1' o 'p2'.
- * @param {string} name Nombre del jugador.
- * @param {string} inputClass Clase CSS para el input.
- * @returns {string} HTML de la fila de la tabla.
- */
 function renderSetScoreRow(match, pKey, name, inputClass) {
     const isP1 = pKey === 'p1';
-    // CORRECCIÓN CLAVE: Verificar si hay un ganador para deshabilitar los inputs.
     const isDisabled = match.winner !== null;
 
-    // Calculate total games won for the final column
     let totalGames = 0;
     
     let setInputsHtml = match.scores.map((setScore, setIndex) => {
-        // Si el jugador es un placeholder de playoff, deshabilitar edición.
         const playerIsPlaceholder = name.startsWith('Winner') || name.startsWith('Loser');
         const effectiveDisabled = isDisabled || playerIsPlaceholder;
 
         const games = isP1 ? setScore[0] : setScore[1];
         totalGames += games || 0;
         
-        // Max score input should be the set limit + 1 (for the X-(X-1) case in an X-game set)
         const maxInputGames = maxGamesPerSet + 1; 
 
         return `
@@ -508,55 +702,43 @@ function renderSetScoreRow(match, pKey, name, inputClass) {
     `;
 }
 
-/**
- * Obtiene la puntuación de sets en formato "X-Y".
- */
 function getSetsScoreString(match) {
     const result = checkMatchWinner(match);
     return `${result.p1Sets}-${result.p2Sets}`;
 }
 
-/**
- * Re-renderiza una tarjeta de partido específica para actualizar el estado.
- */
 function reRenderMatchCard(match) {
     const oldCard = document.getElementById(`match-card-${match.id}`);
     if (oldCard) {
         const newHtml = renderMatchCard(match);
-        // Crear un div temporal para el nuevo HTML
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = newHtml;
         const newCard = tempDiv.firstChild;
         
-        // Reemplazar la tarjeta antigua
         oldCard.parentNode.replaceChild(newCard, oldCard);
         
-        // Vuelve a añadir el listener para el botón de 'Add Set' en la nueva tarjeta
         newCard.querySelector('.btn-add-set')?.addEventListener('click', handleAddSet);
     }
 }
 
-
-/**
- * Renderiza la lista de partidos de la fase actual (Grupos o Playoffs).
- */
 function renderMatches() {
     let currentMatches = currentStage === 'group' ? matches : playoffMatches;
 
     if (currentStep === 'finalStandings') {
-        matchesContainer.innerHTML = '<h2>Tournament Concluded</h2>';
+        matchesContainer.innerHTML = '';
         playoffContainer.innerHTML = '';
+        standingsContainer.innerHTML = '';
         renderFinalStandings();
         return;
     }
     
     matchesContainer.innerHTML = '';
     playoffContainer.innerHTML = '';
+    standingsContainer.innerHTML = ''; // Asegurar que solo una sección se renderice
 
     const containerToUse = currentStage === 'group' ? matchesContainer : playoffContainer;
 
     if (currentStage === 'group') {
-        // Agrupar por grupo para el renderizado
         const groupedMatches = {};
         currentMatches.forEach(m => {
             if (!groupedMatches[m.group]) groupedMatches[m.group] = [];
@@ -577,18 +759,16 @@ function renderMatches() {
             containerToUse.appendChild(groupDiv);
         });
 
-        // Asegurarse de renderizar las posiciones de grupo junto a los partidos
         renderStandings(calculateStandings());
     } else {
-        // Renderizar Playoffs
-        const stages = ['Quarter Final 1', 'Quarter Final 2', 'Quarter Final 3', 'Quarter Final 4', 'Semi Final 1', 'Semi Final 2', 'Final'];
+        const stages = playoffMatches.map(m => m.stage).filter((v, i, a) => a.indexOf(v) === i);
         
         stages.forEach(stageName => {
             const stageMatches = currentMatches.filter(m => m.stage === stageName);
             if (stageMatches.length > 0) {
                 const stageTitle = document.createElement('h2');
                 stageTitle.className = 'text-2xl font-extrabold text-indigo-700 my-4 border-b pb-2';
-                stageTitle.textContent = stageName.includes('Final') ? stageName : `Stage: ${stageName}`;
+                stageTitle.textContent = stageName;
                 containerToUse.appendChild(stageTitle);
                 
                 const stageDiv = document.createElement('div');
@@ -601,20 +781,15 @@ function renderMatches() {
         });
     }
 
-    // Volver a añadir event listeners después de renderizar el HTML
     addEventListeners();
 }
 
-/**
- * Renderiza la tabla de posiciones de la fase de grupos.
- */
 function renderStandings(standings) {
     if (currentStage !== 'group') {
         standingsContainer.innerHTML = '';
         return;
     }
     
-    // Agrupar por grupo para la tabla
     const groupedStandings = {};
     standings.forEach(s => {
         if (!groupedStandings[s.group]) groupedStandings[s.group] = [];
@@ -625,7 +800,7 @@ function renderStandings(standings) {
 
     Object.keys(groupedStandings).sort().forEach(groupKey => {
         html += `<h3 class="text-xl font-bold text-gray-700 mt-4 mb-2">Group ${groupKey}</h3>`;
-        
+        // ... (HTML de la tabla de posiciones - similar a la anterior) ...
         html += `
             <div class="overflow-x-auto shadow-lg rounded-lg mb-6">
                 <table class="min-w-full divide-y divide-gray-200 bg-white">
@@ -669,9 +844,9 @@ function renderStandings(standings) {
 
         html += '</tbody></table></div>';
     });
-
+    
     // Botón para pasar a Playoffs
-    const allMatchesCompleted = matches.every(m => m.winner !== null);
+    const allMatchesCompleted = matches.length > 0 && matches.every(m => m.winner !== null);
     if (allMatchesCompleted) {
         html += `
             <div class="mt-6 text-center">
@@ -684,7 +859,6 @@ function renderStandings(standings) {
 
     standingsContainer.innerHTML = html;
     
-    // Listener para el botón de playoffs
     if (allMatchesCompleted) {
         document.getElementById('btn-start-playoffs')?.addEventListener('click', () => {
             const standings = calculateStandings();
@@ -694,9 +868,6 @@ function renderStandings(standings) {
     }
 }
 
-/**
- * Renderiza la clasificación final (solo después de la final de playoffs).
- */
 function renderFinalStandings() {
     const finalMatch = playoffMatches.find(m => m.id === 'FINAL');
     
@@ -721,48 +892,30 @@ function renderFinalStandings() {
 }
 
 
-// --- 6. GESTORES DE EVENTOS ---
+// --- 6. GESTORES DE EVENTOS (Re-enlazados) ---
 
-/**
- * Asocia los gestores de eventos a los elementos interactivos.
- */
 function addEventListeners() {
-    // Escuchar cambios en cualquier input de marcador
     document.querySelectorAll('.set-score-input').forEach(input => {
-        input.removeEventListener('change', handleScoreChange); // Prevenir duplicados
+        input.removeEventListener('change', handleScoreChange);
         input.addEventListener('change', handleScoreChange);
     });
     
-    // Escuchar clics en el botón de añadir set
     document.querySelectorAll('.btn-add-set').forEach(button => {
-        button.removeEventListener('click', handleAddSet); // Prevenir duplicados
+        button.removeEventListener('click', handleAddSet);
         button.addEventListener('click', handleAddSet);
     });
     
-    // Botón principal de cambio de fase
     document.getElementById('btn-toggle-stage')?.removeEventListener('click', toggleStage);
     document.getElementById('btn-toggle-stage')?.addEventListener('click', toggleStage);
-
-    // Botón de gestión de jugadores
-    document.getElementById('btn-manage-players')?.removeEventListener('click', renderPlayerManagement);
-    document.getElementById('btn-manage-players')?.addEventListener('click', renderPlayerManagement);
-    
-    // Guardar configuración
-    document.getElementById('btn-save-settings')?.removeEventListener('click', handleSaveSettings);
-    document.getElementById('btn-save-settings')?.addEventListener('click', handleSaveSettings);
 }
 
 
-/**
- * Generic handler for score change (works for both group and playoff matches)
- */
 function handleScoreChange(event) {
     const input = event.target;
     const matchId = input.dataset.matchId;
     const pKey = input.dataset.player; 
     const setIndex = parseInt(input.dataset.setIndex);
 
-    // Find the match
     let match = matches.find(m => m.id === matchId);
     const isPlayoff = !match;
     if (isPlayoff) {
@@ -770,18 +923,15 @@ function handleScoreChange(event) {
     }
     if (!match) return;
     
-    // CORRECCIÓN CLAVE: VALIDACIÓN INICIAL PARA EVITAR EDICIÓN
+    // VALIDACIÓN CLAVE: BLOQUEO DE EDICIÓN
     if (match.winner !== null) {
-        // Si un usuario intenta editar un campo deshabilitado, forzamos la recarga del valor anterior.
         const prevValue = (pKey === 'p1' ? match.scores[setIndex][0] : match.scores[setIndex][1]) || '';
         input.value = prevValue;
         showStatus("⚠️ Cannot change score for a completed match.", "orange");
-        // Aseguramos que el input esté realmente deshabilitado si por alguna razón no lo estaba
         input.disabled = true;
         return;
     }
 
-    // Comprobar si el jugador es un placeholder y bloquear edición si lo es.
     const playerName = pKey === 'p1' ? match.p1 : match.p2;
     if (typeof playerName === 'string' && (playerName.startsWith('Winner') || playerName.startsWith('Loser'))) {
         const prevValue = (pKey === 'p1' ? match.scores[setIndex][0] : match.scores[setIndex][1]) || '';
@@ -790,10 +940,8 @@ function handleScoreChange(event) {
         return;
     }
 
-
     let value = input.value.trim() === '' ? undefined : parseInt(input.value.trim());
 
-    // Validar el valor
     const maxInputGames = maxGamesPerSet + 1;
     if (value !== undefined && (value < 0 || value > maxInputGames)) {
         showStatus(`Invalid game score. Must be between 0 and ${maxInputGames}.`, "red");
@@ -803,24 +951,20 @@ function handleScoreChange(event) {
     
     const scorePosition = pKey === 'p1' ? 0 : 1;
     
-    // Inicializar el set si es necesario (debe ser un array)
     if (!match.scores[setIndex]) {
         match.scores[setIndex] = [undefined, undefined];
     }
     
     match.scores[setIndex][scorePosition] = value;
     
-    // Check for match winner
     const matchResult = checkMatchWinner(match);
     match.winner = matchResult.winner;
 
-    // Si se encuentra un ganador en un playoff, actualiza el siguiente partido
     if (match.winner && isPlayoff) {
         match.loser = match.winner === match.p1 ? match.p2 : match.p1;
         updateNextPlayoffMatch(match);
     }
 
-    // Re-render the specific card (Esto asegura que los inputs se deshabiliten correctamente)
     reRenderMatchCard(match);
     
     if (match.winner) {
@@ -829,21 +973,16 @@ function handleScoreChange(event) {
         showStatus(`📝 Score updated. Current sets: ${getSetsScoreString(match)}`, "indigo");
     }
 
-    // Re-renderizar todo para actualizar posiciones/siguiente fase
     renderMatches();
     
-    // Comprobar si la final de playoff ha terminado
     if (match.id === 'FINAL' && match.winner) {
         currentStep = 'finalStandings';
-        renderMatches(); // Llama a renderFinalStandings
+        renderMatches();
     }
     
     saveData(true);
 }
 
-/**
- * Gestiona el clic para añadir un nuevo set a un partido.
- */
 function handleAddSet(event) {
     const button = event.target;
     const matchId = button.dataset.matchId;
@@ -860,23 +999,18 @@ function handleAddSet(event) {
         return;
     }
 
-    // Comprobar si el último set está vacío antes de añadir uno nuevo
     const lastSet = match.scores[match.scores.length - 1];
-    if (lastSet[0] === undefined && lastSet[1] === undefined) {
+    if (lastSet[0] === undefined || lastSet[1] === undefined) {
         showStatus("Fill out the current set before adding a new one.", "orange");
         return;
     }
     
-    // Añadir un nuevo set (inicializado con undefined para ambos jugadores)
     match.scores.push([undefined, undefined]);
     
     reRenderMatchCard(match);
     saveData(true);
 }
 
-/**
- * Cambia entre la fase de grupos y la fase eliminatoria.
- */
 function toggleStage() {
     if (currentStage === 'group') {
         currentStage = 'playoff';
@@ -890,166 +1024,30 @@ function toggleStage() {
 }
 
 
-// --- 7. GESTIÓN DE JUGADORES/CONFIGURACIÓN ---
+// --- 7. INICIALIZACIÓN PRINCIPAL ---
 
 /**
- * Renderiza la interfaz de gestión de jugadores.
+ * Inicializa la lógica una vez que la conexión a Firebase/Cloud ha terminado.
  */
-function renderPlayerManagement() {
-    const managementSection = document.getElementById('management-section');
-    managementSection.classList.remove('hidden');
-    matchesContainer.classList.add('hidden');
-    standingsContainer.classList.add('hidden');
-    playoffContainer.classList.add('hidden');
+window.loadAndInitializeLogic = async function() {
+    await loadData();
+    updateConfigUI(); // Configura los valores iniciales en el HTML
+    renderMatches();  // Dibuja los partidos y posiciones
+
+    // GESTORES DE EVENTOS GLOBALES (Configuración y Jugadores)
+    document.getElementById('btn-configurar-max')?.addEventListener('click', handleSetMaxPlayers);
+    document.getElementById('btn-configurar-grupos')?.addEventListener('click', handleSetNumGroups);
+    document.getElementById('btn-configurar-juegos')?.addEventListener('click', handleSetMaxGamesPerSet);
+    document.getElementById('match-type')?.addEventListener('change', handleMatchTypeChange);
     
-    let html = `
-        <h2 class="text-3xl font-extrabold text-indigo-700 my-4 border-b pb-2">Tournament Settings & Players</h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-gray-50 p-6 rounded-lg shadow">
-                <h3 class="text-xl font-bold text-gray-800 mb-4">Match Rules</h3>
-                <div class="mb-4">
-                    <label for="sets-to-win" class="block text-sm font-medium text-gray-700">Sets needed to win the match:</label>
-                    <input type="number" id="sets-to-win" min="1" max="5" value="${maxSetsToWin}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
-                </div>
-                <div class="mb-4">
-                    <label for="games-per-set" class="block text-sm font-medium text-gray-700">Games required to win a set (must lead by 2):</label>
-                    <input type="number" id="games-per-set" min="4" max="7" value="${maxGamesPerSet}" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
-                </div>
-                <button id="btn-save-settings" class="w-full px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition">Save Rules & Settings</button>
-            </div>
-
-            <div class="bg-gray-50 p-6 rounded-lg shadow">
-                <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Players (${players.length})</h3>
-                <div class="flex mb-4">
-                    <input type="text" id="player-name-input" placeholder="Player Name" class="flex-grow p-2 border border-gray-300 rounded-l-md shadow-sm">
-                    <input type="text" id="player-group-input" placeholder="Group (A, B, C...)" class="w-24 p-2 border border-gray-300 shadow-sm">
-                    <button id="btn-add-player" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-r-md hover:bg-indigo-700 transition">Add</button>
-                </div>
-                
-                <ul id="player-list" class="space-y-2 max-h-64 overflow-y-auto pr-2">
-                    ${players.map(p => `
-                        <li class="flex justify-between items-center p-2 bg-white border border-gray-200 rounded-md shadow-sm">
-                            <span class="font-medium">${p.name} (Group ${p.group})</span>
-                            <button class="btn-remove-player text-red-500 hover:text-red-700 font-bold" data-player-name="${p.name}">Remove</button>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-        </div>
-        
-        <div class="mt-8 text-center">
-            <button id="btn-rebuild-matches" class="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition mr-4">
-                ⚠️ Rebuild Matches (Resets scores!)
-            </button>
-            <button id="btn-back-to-matches" class="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-700 transition">
-                Back to Matches
-            </button>
-        </div>
-    `;
-
-    managementSection.innerHTML = html;
+    document.getElementById('btn-agregar-participante')?.addEventListener('click', handleAddPlayer);
+    document.getElementById('btn-generate-matches')?.addEventListener('click', handleGenerateMatches);
+    document.getElementById('btn-borrar-datos')?.addEventListener('click', handleResetTournament);
     
-    // Add Listeners para la sección de gestión
-    document.getElementById('btn-add-player')?.addEventListener('click', handleAddPlayer);
-    document.querySelectorAll('.btn-remove-player').forEach(btn => {
-        btn.addEventListener('click', handleRemovePlayer);
-    });
-    document.getElementById('btn-rebuild-matches')?.addEventListener('click', handleRebuildMatches);
-    document.getElementById('btn-back-to-matches')?.addEventListener('click', () => {
-        managementSection.classList.add('hidden');
-        matchesContainer.classList.remove('hidden');
-        standingsContainer.classList.remove('hidden');
-        playoffContainer.classList.remove('hidden');
-        renderMatches();
-    });
-    document.getElementById('btn-save-settings')?.addEventListener('click', handleSaveSettings);
-}
+    // Asegurar que el ID se muestre
+    showTournamentId(window.userId);
 
-/**
- * Añade un nuevo jugador.
- */
-function handleAddPlayer() {
-    const name = document.getElementById('player-name-input').value.trim();
-    const group = document.getElementById('player-group-input').value.trim().toUpperCase();
+    // Los listeners de los marcadores y Add Set se añaden en renderMatches/addEventListeners
+};
 
-    if (name && group) {
-        if (players.some(p => p.name === name)) {
-            showStatus("Player name already exists.", "red");
-            return;
-        }
-        players.push({ id: `p${players.length + 1}`, name: name, group: group, photoURL: null });
-        document.getElementById('player-name-input').value = '';
-        document.getElementById('player-group-input').value = '';
-        saveData(true);
-        renderPlayerManagement(); // Re-renderiza la lista
-        showStatus(`Player ${name} added to Group ${group}.`, "blue");
-    } else {
-        showStatus("Please enter both Name and Group.", "red");
-    }
-}
-
-/**
- * Elimina un jugador.
- */
-function handleRemovePlayer(event) {
-    const playerName = event.target.dataset.playerName;
-    players = players.filter(p => p.name !== playerName);
-    saveData(true);
-    renderPlayerManagement();
-    showStatus(`Player ${playerName} removed.`, "red");
-}
-
-/**
- * Reconstruye todos los partidos y reinicia los marcadores.
- */
-function handleRebuildMatches() {
-    if (confirm("WARNING: This will delete all current match scores and regenerate all group matches. Are you sure?")) {
-        generateMatches();
-        playoffMatches = [];
-        currentStage = 'group';
-        currentStep = 'groups';
-        saveData(false);
-        // Volver a la vista de partidos
-        document.getElementById('management-section').classList.add('hidden');
-        matchesContainer.classList.remove('hidden');
-        standingsContainer.classList.remove('hidden');
-        playoffContainer.classList.remove('hidden');
-        renderMatches();
-        showStatus("Matches rebuilt and scores reset.", "red");
-    }
-}
-
-/**
- * Guarda la configuración de reglas del partido.
- */
-function handleSaveSettings() {
-    const newSetsToWin = parseInt(document.getElementById('sets-to-win').value);
-    const newGamesPerSet = parseInt(document.getElementById('games-per-set').value);
-
-    if (newSetsToWin >= 1 && newSetsToWin <= 5 && newGamesPerSet >= 4 && newGamesPerSet <= 7) {
-        maxSetsToWin = newSetsToWin;
-        maxGamesPerSet = newGamesPerSet;
-        saveData(false);
-        showStatus(`Match rules updated: Win by ${maxSetsToWin} sets, ${maxGamesPerSet} games per set.`, "green");
-    } else {
-        showStatus("Invalid rule settings. Sets (1-5), Games (4-7).", "red");
-    }
-}
-
-// --- 8. INICIALIZACIÓN ---
-
-function init() {
-    loadData();
-    // Inicializar listeners globales (que no dependen del renderizado de tarjetas)
-    document.getElementById('btn-toggle-stage').addEventListener('click', toggleStage);
-    document.getElementById('btn-manage-players').addEventListener('click', renderPlayerManagement);
-    
-    // Configurar el texto inicial del botón de fase
-    document.getElementById('btn-toggle-stage').textContent = currentStage === 'group' ? '🚀 Go to Playoff Stage' : '⬅️ Back to Group Stage';
-
-    renderMatches();
-}
-
-// Iniciar la aplicación
-init();
+// La ejecución se inicia desde el script de Firebase en index.html
