@@ -283,7 +283,15 @@ async function loadData(loadFromCloud = false) {
     if (data.maxPlayers) maxPlayers = data.maxPlayers;
     if (data.numGroups) numGroups = data.numGroups;
     if (data.mode) mode = data.mode;
-    maxGamesPerSet = data.maxGamesPerSet !== undefined ? data.maxGamesPerSet : 6;
+    
+    // FIX: Doble verificación para asegurar que maxGamesPerSet es un número válido.
+    const loadedMaxGames = data.maxGamesPerSet;
+    if (typeof loadedMaxGames === 'number' && loadedMaxGames >= 4) {
+        maxGamesPerSet = loadedMaxGames;
+    } else {
+        maxGamesPerSet = 6; // Default fallback to 6
+    }
+    
     setsToWinMatch = data.setsToWinMatch !== undefined ? data.setsToWinMatch : 1; 
 
     // --- REVERTIR LA TRANSFORMACIÓN DE SCORES (Convertir "p1-p2" string a [p1, p2] array) ---
@@ -813,6 +821,7 @@ function checkSetWinner(setScore) {
     } 
     
     // Rule 2: Win at max-(max-1) (e.g., 6-5, requires winning at least 'max' games)
+    // Note: The maximum game count should only be reached if the tiebreak logic is manually applied (e.g. 6-5) or via game lead.
     else if (p1Games === max && p2Games === max - 1) { 
         return 'p1';
     } else if (p2Games === max && p1Games === max - 1) { 
@@ -828,7 +837,7 @@ function checkMatchWinner(match) {
     let p2SetWins = 0;
     
     // Determinar el umbral de sets a ganar: 
-    // Si tiene 'group' (Fase de Grupos), el umbral es 1.
+    // Si tiene 'group' (Fase de Grupos) y no 'stage', el umbral es 1.
     // Si no tiene 'group' (Fase Eliminatoria, tiene 'stage'), el umbral es 2.
     const isGroupMatch = match.group !== undefined && match.stage === undefined;
     const threshold = isGroupMatch ? 1 : 2; 
