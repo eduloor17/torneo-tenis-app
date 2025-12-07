@@ -60,8 +60,8 @@
     <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
       <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
 
-      <div class="grid md:grid-cols-2 gap-6">
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
           <label for="max-jugadores-input" class="block text-sm font-medium text-indigo-700">
             Maximum Players (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
           </label>
@@ -77,7 +77,7 @@
           <div id="set-max-message" class="text-sm mt-1"></div>
         </div>
 
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
           <label for="num-grupos-input" class="block text-sm font-medium text-indigo-700">
             Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)
           </label>
@@ -92,6 +92,22 @@
           <p class="text-xs text-gray-600 mt-1">Total players must be divisible by this number.</p>
           <div id="set-group-message" class="text-sm mt-1"></div>
         </div>
+        
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+            <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
+                Max Games per Set (Pro Set) (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
+            </label>
+            <div class="mt-1 flex space-x-2">
+                <input type="number" id="max-games-set-input" value="6" min="4" step="2"
+                    class="flex-grow p-2 border border-indigo-300 rounded-lg">
+                <button type="button" id="btn-configurar-juegos"
+                    class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+                    Set Games
+                </button>
+            </div>
+            <p class="text-xs text-gray-600 mt-1">Must be even (e.g., 4, 6, 8).</p>
+            <p id="set-games-message" class="text-sm mt-1"></p>
+        </div>
       </div>
 
       <div class="mt-4">
@@ -122,7 +138,7 @@
         <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
           <h3 class="text-lg font-semibold text-gray-800 mb-2">List (<span id="contador-participantes-list">0</span>)</h3>
           <ul id="lista-participantes" class="list-disc list-inside space-y-1 text-sm text-gray-700"></ul>
-        </div>
+                </div>
       </div>
 
       <div class="mt-6 border-t pt-4">
@@ -152,9 +168,9 @@
       appId: "1:847832314171:web:ce61405a155f67bf4ac71e",
       measurementId: "G-C842BQXWXN"
     };
-    
+    
     window.db = null;
-    window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
+    window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
     window.isCloudMode = false;
 
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -168,11 +184,11 @@
 
       onAuthStateChanged(window.auth, async (user) => {
         if (!user) await signInAnonymously(window.auth);
-        
-        // If no tournament ID is stored, use the Firebase Auth UID as the new ID
-        if (!localStorage.getItem("current-tournament-id")) {
-             window.userId = window.auth.currentUser.uid;
-        }
+        
+        // If no tournament ID is stored, use the Firebase Auth UID as the new ID
+        if (!localStorage.getItem("current-tournament-id")) {
+             window.userId = window.auth.currentUser.uid;
+        }
 
         // Re-call loadAndInitializeLogic after Firebase setup completes
         if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
@@ -182,13 +198,13 @@
       console.warn("⚠️ No Firebase config — running in local mode. Data will NOT sync.");
       // In local mode, we still call the logic, but it uses localStorage
       if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
-      loadingOverlay.style.display = 'none';
+      loadingOverlay.style.display = 'none';
     }
-    
-    // Make sure Firestore functions are globally available for my-app-logic.js
-    window.setDoc = setDoc;
-    window.doc = doc;
-    window.getDoc = getDoc;
+    
+    // Make sure Firestore functions are globally available for my-app-logic.js
+    window.setDoc = setDoc;
+    window.doc = doc;
+    window.getDoc = getDoc;
   </script>
 
     <script type="module" src="./my-app-logic.js"></script>
