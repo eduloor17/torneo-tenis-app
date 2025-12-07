@@ -194,33 +194,56 @@ function setupUI() {
 // ---------------------------
 // DATA HANDLING (CLOUD & LOCAL)
 // ---------------------------
-async function saveData(saveToCloud = false) {
-  const data = { 
-    players, 
-    maxPlayers, 
-    numGroups, 
-    mode, 
-    maxGamesPerSet, 
-    setsToWinMatch, // Save new variable
-    matches, 
-    playoffMatches, 
-    timestamp: Date.now() 
-}; 
-  
-  // 1. Save to Local Storage (always happens)
-  localStorage.setItem("tournament-data", JSON.stringify(data));
-  localStorage.setItem("current-tournament-id", window.userId);
 
-  // 2. Save to Cloud (if enabled)
-  if (saveToCloud && window.isCloudMode && window.db) {
-    try {
-      await window.setDoc(window.doc(window.db, "tournaments", window.userId), data);
-      showStatus(`☁️ Saved to Cloud. ID: ${window.userId.substring(0, 8)}...`, "indigo");
-    } catch (e) {
-      console.error("Error saving document to cloud:", e);
-      showStatus("❌ Error saving to cloud. Check console. Did you enable Firestore?", "red");
+async function saveData(saveToCloud = false) {
+    // Deep copy and transform matches for Firebase compatibility (convert [p1, p2] array to "p1-p2" string)
+    const matchesToSave = JSON.parse(JSON.stringify(matches)).map(m => {
+        m.scores = m.scores.map(setScore => {
+            // Convert set score array [p1Games, p2Games] to a string "p1Games-p2Games"
+            const p1 = setScore[0] !== undefined ? setScore[0] : '';
+            const p2 = setScore[1] !== undefined ? setScore[1] : '';
+            return `${p1}-${p2}`;
+        });
+        return m;
+    });
+    
+    // Deep copy and transform playoffMatches
+    const playoffMatchesToSave = JSON.parse(JSON.stringify(playoffMatches)).map(m => {
+        m.scores = m.scores.map(setScore => {
+            const p1 = setScore[0] !== undefined ? setScore[0] : '';
+            const p2 = setScore[1] !== undefined ? setScore[1] : '';
+            return `${p1}-${p2}`;
+        });
+        return m;
+    });
+
+    const data = { 
+        players, 
+        maxPlayers, 
+        numGroups, 
+        mode, 
+        maxGamesPerSet, 
+        setsToWinMatch, 
+        matches: matchesToSave,             // Usar la versión compatible
+        playoffMatches: playoffMatchesToSave, // Usar la versión compatible
+        timestamp: Date.now() 
+    }; 
+    
+    // 1. Save to Local Storage (always happens)
+    localStorage.setItem("tournament-data", JSON.stringify(data));
+    localStorage.setItem("current-tournament-id", window.userId);
+
+    // 2. Save to Cloud (if enabled)
+    if (saveToCloud && window.isCloudMode && window.db) {
+        try {
+            // This is where the Firebase call happens with the compatible data structure
+            await window.setDoc(window.doc(window.db, "tournaments", window.userId), data);
+            showStatus(`☁️ Saved to Cloud. ID: ${window.userId.substring(0, 8)}...`, "indigo");
+        } catch (e) {
+            console.error("Error saving document to cloud:", e);
+            showStatus("❌ Error saving to cloud. Check console. Did you enable Firestore?", "red");
+        }
     }
-  }
 }
 
 async function loadData(loadFromCloud = false) {
@@ -257,17 +280,40 @@ async function loadData(loadFromCloud = false) {
   if (data.maxPlayers) maxPlayers = data.maxPlayers;
   if (data.numGroups) numGroups = data.numGroups;
   if (data.mode) mode = data.mode;
-  // If data.maxGamesPerSet exists, use it. Otherwise, use the new default (6).
   maxGamesPerSet = data.maxGamesPerSet !== undefined ? data.maxGamesPerSet : 6;
-  // If data.setsToWinMatch exists, use it. Otherwise, use the new default (1).
   setsToWinMatch = data.setsToWinMatch !== undefined ? data.setsToWinMatch : 1; 
-  
-  if (data.matches) matches = data.matches;
-  if (data.playoffMatches) playoffMatches = data.playoffMatches; 
+
+  // --- REVERTIR LA TRANSFORMACIÓN DE SCORES (Convertir "p1-p2" string a [p1, p2] array) ---
+  if (data.matches) {
+      matches = data.matches.map(m => {
+          m.scores = m.scores.map(setScoreString => {
+              const parts = setScoreString.split('-');
+              // Use empty string check for compatibility with old "undefined" state
+              const p1Games = parts[0] !== '' ? parseInt(parts[0]) : undefined;
+              const p2Games = parts[1] !== '' ? parseInt(parts[1]) : undefined;
+              return [p1Games, p2Games];
+          });
+          return m;
+      });
+  }
+
+  if (data.playoffMatches) {
+      playoffMatches = data.playoffMatches.map(m => {
+          m.scores = m.scores.map(setScoreString => {
+              const parts = setScoreString.split('-');
+              const p1Games = parts[0] !== '' ? parseInt(parts[0]) : undefined;
+              const p2Games = parts[1] !== '' ? parseInt(parts[1]) : undefined;
+              return [p1Games, p2Games];
+          });
+          return m;
+      });
+  }
+  // ---------------------------------------------
 
   updateUI();
   renderMatches(); 
   
+  // Save back to ensure local storage reflects the current cloud/local state
   saveData();
 }
 
@@ -760,8 +806,8 @@ function checkSetWinner(setScore) {
     } 
     
     // Rule 2: Win at max-(max-1) (e.g., 6-5 after a tiebreak for a 6-game set, or 8-7 for an 8-game set)
-    // Note: This rule assumes a tiebreak is played at (max - 1) all, resulting in a score of max-(max-1)
     // The previous rule covers scores like 6-0, 6-1, 6-2, 6-3, 7-5, 8-6, etc.
+    // This rule is usually for the tiebreak case, assuming max is the target.
     else if (p1Games === max && p2Games === max - 1) {
         return 'p1';
     } else if (p2Games === max && p1Games === max - 1) {
@@ -777,6 +823,7 @@ function checkMatchWinner(match) {
     let p2SetWins = 0;
     
     // Determinar el umbral de sets a ganar: 1 para grupos, 2 para playoffs.
+    // Usamos el 'group' para diferenciar (Playoff matches do not have a 'group' property)
     const threshold = match.group ? 1 : 2; 
 
     // Check set results
