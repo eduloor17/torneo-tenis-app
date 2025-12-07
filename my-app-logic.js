@@ -7,7 +7,7 @@ let maxPlayers = 10;
 let numGroups = 2;
 let mode = "singles"; // or "doubles"
 let maxGamesPerSet = 6; // Máximo de juegos por set por defecto es 6 (Pro Set)
-let setsToWinMatch = 1; // Por defecto: 1 set para ganar (para la fase de grupos Pro Set)
+let setsToWinMatch = 2; // 2 sets para ganar TODOS los partidos
 let matches = [];
 let playoffMatches = []; 
 
@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // ---------------------------
-// UI SETUP
+// UI SETUP (SIN CAMBIOS RELEVANTES AQUÍ)
 // ---------------------------
 function setupUI() {
     // DOM elements
@@ -181,7 +181,7 @@ function setupUI() {
             numGroups = 2;
             mode = "singles";
             maxGamesPerSet = 6; 
-            setsToWinMatch = 1; // Reset to default 1 set to win
+            setsToWinMatch = 2; 
             matches = [];
             playoffMatches = []; 
             
@@ -292,7 +292,8 @@ async function loadData(loadFromCloud = false) {
         maxGamesPerSet = 6; // Default fallback to 6
     }
     
-    setsToWinMatch = data.setsToWinMatch !== undefined ? data.setsToWinMatch : 1; 
+    // Forzar a 2 sets si se está cargando un valor antiguo (1)
+    setsToWinMatch = data.setsToWinMatch !== undefined && data.setsToWinMatch >= 1 ? data.setsToWinMatch : 2; 
 
     // --- REVERTIR LA TRANSFORMACIÓN DE SCORES (Convertir "p1-p2" string a [p1, p2] array) ---
     const transformScores = (dataMatches) => {
@@ -325,7 +326,7 @@ async function loadData(loadFromCloud = false) {
 }
 
 // ---------------------------
-// UI UPDATES
+// UI UPDATES (SIN CAMBIOS RELEVANTES AQUÍ)
 // ---------------------------
 function updateUI() {
     // Update Max Players displays
@@ -408,8 +409,8 @@ function generateMatches() {
         return;
     }
     
-    // Establecer a 1 set para ganar en la fase de grupos (Pro Set)
-    setsToWinMatch = 1;
+    // Establecer a 2 sets para ganar en TODOS los partidos
+    setsToWinMatch = 2;
     saveData(false); // Update local setting
 
     const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
@@ -476,8 +477,7 @@ function generatePlayoffMatches(standings) {
     const groupMatchesCompleted = matches.every(m => m.winner !== null);
     if (!groupMatchesCompleted) return;
     
-    // Establecer a 2 sets para ganar en la fase eliminatoria (Mejor de 3)
-    setsToWinMatch = 2; 
+    // El setsToWinMatch ya está establecido en 2
     saveData(false); // Update local setting
 
     const player1st = top4[0];
@@ -525,8 +525,8 @@ function renderMatches() {
     // STEP 3: GROUP MATCHES SECTION
     // ----------------------------------------------------------------
     let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Group Match Results (Pro Set to ${maxGamesPerSet} Games)</h2>
-        <p class="text-sm text-gray-600 mb-4">A match is won by the first player to reach **${maxGamesPerSet} games** with a two-game lead. If tied at **${maxGamesPerSet - 1}-${maxGamesPerSet - 1}**, a tiebreak is played, and the final score will be **${maxGamesPerSet}-${maxGamesPerSet - 1}**. **Groups are decided by winning 1 set.**</p>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Group Match Results (Best of 3 Sets)</h2>
+        <p class="text-sm text-gray-600 mb-4">A set is won by the first player to reach **${maxGamesPerSet} games** with a two-game lead. If tied at **${maxGamesPerSet - 1}-${maxGamesPerSet - 1}**, a tiebreak is played, and the final score will be **${maxGamesPerSet}-${maxGamesPerSet - 1}**. **All matches are decided by winning 2 sets.**</p>
         <div id="match-list" class="space-y-4">`;
 
     const groupedMatches = matches.reduce((acc, match) => {
@@ -587,6 +587,11 @@ function renderMatches() {
     document.querySelectorAll('.btn-add-set').forEach(button => {
         button.addEventListener('click', handleAddSet);
     });
+    
+    // *** NUEVO: Attach Event Listeners to "Quick Win" buttons ***
+    document.querySelectorAll('.btn-quick-set-win').forEach(button => {
+        button.addEventListener('click', handleQuickSetWin);
+    });
 }
 
 // Renders a generic match card (Set/Game Inputs)
@@ -601,6 +606,20 @@ function renderMatchCard(match) {
     const isPlayoff = match.stage;
     const stageInfo = isPlayoff ? match.stage : `Group ${match.group}`;
     const inputClass = isPlayoff ? 'playoff-set-input' : 'group-set-input';
+
+    // Determinar el índice del set actual (último set no completado)
+    let currentSetIndex = match.scores.length - 1;
+    // Buscamos si el último set ya está completo para determinar si se necesita el siguiente set
+    while (currentSetIndex >= 0 && checkSetWinner(match.scores[currentSetIndex]) !== null) {
+        currentSetIndex++;
+    }
+    // Si el currentSetIndex supera el número actual de sets, retrocedemos al último set existente
+    if (currentSetIndex >= match.scores.length) {
+        currentSetIndex = match.scores.length - 1;
+    }
+    
+    const isCurrentSetFinished = match.scores.length > 0 && checkSetWinner(match.scores[match.scores.length - 1]) !== null;
+    const disableQuickWin = isCompleted || isCurrentSetFinished;
 
     let cardHtml = `
         <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
@@ -617,15 +636,15 @@ function renderMatchCard(match) {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        ${renderSetScoreRow(match, 'p1', p1Name, inputClass)}
-                        ${renderSetScoreRow(match, 'p2', p2Name, inputClass)}
+                        ${renderSetScoreRow(match, 'p1', p1Name, inputClass, disableQuickWin, currentSetIndex)}
+                        ${renderSetScoreRow(match, 'p2', p2Name, inputClass, disableQuickWin, currentSetIndex)}
                     </tbody>
                 </table>
             </div>
             
             <div class="mt-3 flex justify-between items-center">
-                 <button class="btn-add-set bg-indigo-500 hover:bg-indigo-600 text-white text-xs px-2 py-1 rounded-md transition duration-150 ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}" 
-                        data-match-id="${match.id}" ${isCompleted ? 'disabled' : ''}>
+                 <button class="btn-add-set bg-indigo-500 hover:bg-indigo-600 text-white text-xs px-2 py-1 rounded-md transition duration-150 ${isCompleted || !isCurrentSetFinished ? 'opacity-50 cursor-not-allowed' : ''}" 
+                        data-match-id="${match.id}" ${isCompleted || !isCurrentSetFinished ? 'disabled' : ''}>
                     + Add Set
                 </button>
                 <p class="text-sm font-semibold text-gray-900">
@@ -641,7 +660,7 @@ function renderMatchCard(match) {
 }
 
 // Helper to render one row in the score table (Multiple Sets)
-function renderSetScoreRow(match, pKey, name, inputClass) {
+function renderSetScoreRow(match, pKey, name, inputClass, disableQuickWin, currentSetIndex) {
     const isP1 = pKey === 'p1';
     const isDisabled = match.winner !== null;
 
@@ -652,18 +671,44 @@ function renderSetScoreRow(match, pKey, name, inputClass) {
         const games = isP1 ? setScore[0] : setScore[1];
         totalGames += games || 0;
         
-        // Max score input should be the set limit + 1 (for the X-(X-1) case in an X-game set)
+        // Max score input should be the set limit + 1 
         const maxInputGames = maxGamesPerSet + 1; 
-        
-        // FIX: Ensure 'value' is a number or empty string to avoid "null" warning on type=number input
         const inputValue = (games !== undefined && games !== null) ? games : ''; 
-
-        return `
-            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
-                <input type="number" min="0" max="${maxInputGames}" value="${inputValue}" 
+        
+        // Determinar si es el set actual para mostrar el botón de Quick Win
+        const isSetCurrent = setIndex === currentSetIndex && !isDisabled;
+        
+        let content;
+        if (isSetCurrent) {
+            // Mostrar input y botón de Quick Win para el set actual
+            content = `
+                <div class="flex flex-col items-center space-y-1">
+                    <input type="number" min="0" max="${maxInputGames}" value="${inputValue}" 
+                           data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
+                           class="${inputClass} set-score-input w-14 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
+                           ${isDisabled ? 'disabled' : ''}>
+                    <button class="btn-quick-set-win bg-green-500 hover:bg-green-600 text-white text-xs px-1 py-0.5 rounded-sm w-full 
+                                    ${disableQuickWin ? 'opacity-50 cursor-not-allowed' : ''}" 
+                            data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
+                            ${disableQuickWin ? 'disabled' : ''}>
+                        Set Win (6-4)
+                    </button>
+                </div>
+            `;
+        } else {
+            // Mostrar solo el input (o el valor si está deshabilitado)
+             content = `
+                 <input type="number" min="0" max="${maxInputGames}" value="${inputValue}" 
                        data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
                        class="${inputClass} set-score-input w-14 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
                        ${isDisabled ? 'disabled' : ''}>
+             `;
+        }
+
+
+        return `
+            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
+                ${content}
             </td>
         `;
     }).join('');
@@ -724,6 +769,12 @@ function handleAddSet(event) {
         showStatus("⚠️ Cannot add a set to a completed match.", "orange");
         return;
     }
+    
+    // Solo permitir añadir un set si el último set ya está completo
+    if (match.scores.length > 0 && checkSetWinner(match.scores[match.scores.length - 1]) === null) {
+        showStatus("⚠️ Please complete the current set before adding a new one.", "orange");
+        return;
+    }
 
     // Add a new set slot
     match.scores.push([undefined, undefined]);
@@ -733,6 +784,69 @@ function handleAddSet(event) {
     
     saveData(true);
 }
+
+// *** NUEVA FUNCIÓN: Registro rápido de Set Ganado (ej. 6-4) ***
+function handleQuickSetWin(event) {
+    const button = event.target;
+    const matchId = button.dataset.matchId;
+    const pKey = button.dataset.player; 
+    const setIndex = parseInt(button.dataset.setIndex);
+
+    // Find the match
+    let match = matches.find(m => m.id === matchId);
+    if (!match) {
+        match = playoffMatches.find(m => m.id === matchId);
+    }
+    if (!match) return;
+    
+    if (match.winner !== null) return; 
+    
+    const maxGames = maxGamesPerSet;
+    const isP1 = pKey === 'p1';
+    
+    // Aplicar el marcador estándar de set ganado por diferencia de 2
+    let p1Games = isP1 ? maxGames : maxGames - 2;
+    let p2Games = isP1 ? maxGames - 2 : maxGames;
+    
+    // El set tiene que tener una puntuación mínima. Si maxGames=6, 6-4.
+    if (maxGames < 4) { 
+        // Si la configuración es extraña, usamos la mínima diferencia
+        p1Games = isP1 ? maxGames : 0; 
+        p2Games = isP1 ? 0 : maxGames; 
+    }
+    
+    // Actualizar el score del set
+    match.scores[setIndex][0] = p1Games;
+    match.scores[setIndex][1] = p2Games;
+
+    // Ejecutar la lógica de manejo de score para verificar el ganador del partido
+    checkAndHandleMatchWinner(match);
+}
+
+// Función centralizada para manejar el cambio de score y verificar el ganador
+function checkAndHandleMatchWinner(match) {
+    const matchResult = checkMatchWinner(match);
+    match.winner = matchResult.winner;
+
+    // Si ganador encontrado, set loser for playoffs
+    const isGroupMatch = match.group !== undefined && match.stage === undefined;
+    if (match.winner && !isGroupMatch) {
+        match.loser = match.winner === match.p1 ? match.p2 : match.p1;
+    }
+
+    // Re-render the specific card
+    reRenderMatchCard(match);
+    
+    if (match.winner) {
+         showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
+         renderMatches(); // Render completo para actualizar standings/playoffs
+    } else {
+        showStatus(`📝 Score updated. Current sets: ${getSetsScoreString(match)}`, "indigo");
+    }
+    
+    saveData(true);
+}
+
 
 // Generic handler for score change (works for both group and playoff matches)
 function handleScoreChange(event) {
@@ -745,7 +859,6 @@ function handleScoreChange(event) {
 
     // Find the match
     let match = matches.find(m => m.id === matchId);
-    const isGroupMatch = !!match; // Check if match was found in group matches
     if (!match) {
         match = playoffMatches.find(m => m.id === matchId);
     }
@@ -761,30 +874,8 @@ function handleScoreChange(event) {
     const scorePosition = pKey === 'p1' ? 0 : 1;
     match.scores[setIndex][scorePosition] = value;
     
-    // Check for match winner (based on total games won)
-    const matchResult = checkMatchWinner(match);
-    match.winner = matchResult.winner;
-
-    // If winner found, set loser for playoffs
-    if (match.winner && !isGroupMatch) {
-        match.loser = match.winner === match.p1 ? match.p2 : match.p1;
-    }
-
-    // Re-render the specific card
-    reRenderMatchCard(match);
-    
-    if (match.winner) {
-         showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
-    } else {
-        showStatus(`📝 Score updated. Current sets: ${getSetsScoreString(match)}`, "indigo");
-    }
-
-    // Full render if a match completed, to update standings and check for playoffs
-    if (match.winner) {
-        renderMatches(); 
-    }
-    
-    saveData(true);
+    // Verificar el ganador después de la actualización
+    checkAndHandleMatchWinner(match);
 }
 
 // Helper to re-render a match card and re-attach listeners
@@ -798,6 +889,10 @@ function reRenderMatchCard(match) {
         });
         cardContainer.querySelectorAll('.btn-add-set').forEach(button => {
             button.addEventListener('click', handleAddSet);
+        });
+        // Re-attach Quick Win listeners
+        cardContainer.querySelectorAll('.btn-quick-set-win').forEach(button => {
+            button.addEventListener('click', handleQuickSetWin);
         });
     }
 }
@@ -821,7 +916,6 @@ function checkSetWinner(setScore) {
     } 
     
     // Rule 2: Win at max-(max-1) (e.g., 6-5, requires winning at least 'max' games)
-    // Note: The maximum game count should only be reached if the tiebreak logic is manually applied (e.g. 6-5) or via game lead.
     else if (p1Games === max && p2Games === max - 1) { 
         return 'p1';
     } else if (p2Games === max && p1Games === max - 1) { 
@@ -836,11 +930,8 @@ function checkMatchWinner(match) {
     let p1SetWins = 0;
     let p2SetWins = 0;
     
-    // Determinar el umbral de sets a ganar: 
-    // Si tiene 'group' (Fase de Grupos) y no 'stage', el umbral es 1.
-    // Si no tiene 'group' (Fase Eliminatoria, tiene 'stage'), el umbral es 2.
-    const isGroupMatch = match.group !== undefined && match.stage === undefined;
-    const threshold = isGroupMatch ? 1 : 2; 
+    // El umbral es siempre 2 sets para ganar
+    const threshold = setsToWinMatch; 
 
     // Check set results
     match.scores.forEach(set => {
@@ -867,7 +958,7 @@ function checkMatchWinner(match) {
 }
 
 // ---------------------------
-// RANKING SYSTEM
+// RANKING SYSTEM (SIN CAMBIOS RELEVANTES AQUÍ)
 // ---------------------------
 
 // Function to calculate standings for all players/teams across all groups
@@ -965,7 +1056,7 @@ function calculateStandings() {
 }
 
 // ---------------------------
-// STANDINGS RENDERING
+// STANDINGS RENDERING (SIN CAMBIOS RELEVANTES AQUÍ)
 // ---------------------------
 
 function renderStandings(standingsArray) {
