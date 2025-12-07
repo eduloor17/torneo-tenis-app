@@ -46,16 +46,24 @@
                 </form>
                 <p id="load-message" class="text-sm text-gray-500 mt-2"></p>
             </div>
-            </header>
+        </header>
 
         <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
             <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup (Fixed Rules: Best of 3 Sets, 6 Games per Set)</h2>
 
-            <div class="grid md:grid-cols-2 gap-6">
+            <div class="grid md:grid-cols-3 gap-6">
+                
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+                    <label for="match-type" class="block text-sm font-medium text-indigo-700">Match Type</label>
+                    <select id="match-type" class="border rounded p-2 mt-1 w-full" data-config-key="matchType">
+                        <option value="singles">Singles</option>
+                        <option value="doubles">Doubles (Teams)</option>
+                    </select>
+                </div>
 
                 <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
                     <label for="max-jugadores-input" class="block text-sm font-medium text-gray-700">
-                        Maximum Players (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
+                        Maximum Players/Teams (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
                     </label>
                     <input type="number" id="max-jugadores-input" min="4" step="2" value="10"
                         class="p-2 border border-gray-300 rounded-lg w-full" data-config-key="maxPlayers">
@@ -78,7 +86,7 @@
             <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Player Registration</h2>
             <div class="grid md:grid-cols-3 gap-6">
                 <div class="md:col-span-2">
-                    <label for="nombre-input" class="block text-sm font-medium text-gray-700">Player Name</label>
+                    <label for="nombre-input" class="block text-sm font-medium text-gray-700"><span id="player-type-label">Player</span> Name</label>
                     <div class="mt-1 flex space-x-2">
                         <input type="text" id="nombre-input" placeholder="e.g. Rafael Nadal"
                             class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
@@ -130,14 +138,13 @@
         
         // Variables globales de Firebase
         window.db = null;
-        // Si no hay ID de torneo guardado, genera uno nuevo (o usa UID de Firebase)
         window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
         window.isCloudMode = false;
 
         const loadingOverlay = document.getElementById('loading-overlay');
         loadingOverlay.style.display = 'flex';
 
-        if (firebaseConfig.apiKey) { // Comprueba si la configuración es válida
+        if (firebaseConfig.apiKey) {
             window.app = initializeApp(firebaseConfig);
             window.db = getFirestore(window.app);
             window.auth = getAuth(window.app);
@@ -146,7 +153,6 @@
             onAuthStateChanged(window.auth, async (user) => {
                 if (!user) await signInAnonymously(window.auth);
                 
-                // Usamos el UID si no hay un ID de torneo ya establecido
                 if (!localStorage.getItem("current-tournament-id")) {
                     window.userId = window.auth.currentUser.uid;
                 }
