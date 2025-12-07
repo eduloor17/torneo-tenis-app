@@ -12,31 +12,11 @@
     }
     .match-card {
       margin-bottom: 1rem;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .match-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
     .match-card.completed {
       border: 2px solid #10b981;
       opacity: 0.9;
     }
-    .set-score-input[disabled] {
-        background-color: #e5e7eb; /* gray-200 */
-        cursor: not-allowed;
-    }
-    #status-message {
-        transition: opacity 0.5s ease-in-out;
-        opacity: 0;
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 1000;
-        min-width: 300px;
-        text-align: center;
-    }
   </style>
 </head>
 <body>
@@ -52,29 +32,22 @@
       <p class="mt-3 text-lg font-semibold text-gray-700">Connecting to Cloud Tournament...</p>
     </div>
   </div>
-  
-    <div id="status-message" class="p-3 rounded-lg border-l-4 font-medium"></div>
 
   <div class="max-w-4xl mx-auto p-6">
     <header class="bg-white p-6 rounded-2xl shadow mb-8">
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
         <h1 class="text-3xl font-extrabold text-indigo-800">🎾 Tennis Tournament Manager</h1>
         <div class="mt-3 md:mt-0 flex flex-col items-end">
-          <div id="tournament-id-display" class="text-right text-sm text-gray-600"></div>
-          <div class="flex space-x-2 mt-2">
-                <button id="btn-toggle-stage" class="px-3 py-1 bg-teal-500 text-white text-sm font-semibold rounded-lg hover:bg-teal-600 transition duration-150">
-                    🚀 Go to Playoff Stage
-                </button>
-                <button id="btn-borrar-datos"
-                class="px-3 py-1 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150 border border-red-300 rounded-lg">
-                Reset Tournament (Start New)
-            </button>
-            </div>
+                    <div id="tournament-id-display" class="text-right"></div>
+          <button id="btn-borrar-datos"
+            class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
+            Reset Tournament (Start New)
+          </button>
         </div>
       </div>
 
       <div class="mt-4 pt-4 border-t border-gray-100">
-        <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
           <input type="text" id="external-id-input" placeholder="Enter a tournament ID to load"
             class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
           <button type="submit"
@@ -84,10 +57,11 @@
       </div>
     </header>
 
-        <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
+    <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
       <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
           <label for="max-jugadores-input" class="block text-sm font-medium text-indigo-700">
             Maximum Players (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
           </label>
@@ -103,7 +77,7 @@
           <div id="set-max-message" class="text-sm mt-1"></div>
         </div>
 
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
           <label for="num-grupos-input" class="block text-sm font-medium text-indigo-700">
             Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)
           </label>
@@ -118,23 +92,24 @@
           <p class="text-xs text-gray-600 mt-1">Total players must be divisible by this number.</p>
           <div id="set-group-message" class="text-sm mt-1"></div>
         </div>
-        
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-            <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
-                Max Games per Set (Pro Set) (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
-            </label>
-            <div class="mt-1 flex space-x-2">
-                <input type="number" id="max-games-set-input" value="6" min="4" step="2"
-                    class="flex-grow p-2 border border-indigo-300 rounded-lg">
-                <button type="button" id="btn-configurar-juegos"
-                    class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
-                    Set Games
-                </button>
-            </div>
-            <p class="text-xs text-gray-600 mt-1">Must be even (e.g., 4, 6, 8).</p>
-            <p id="set-games-message" class="text-sm mt-1"></p>
-        </div>
+        
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+            <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
+                Max Games per Set (Pro Set) (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
+            </label>
+            <div class="mt-1 flex space-x-2">
+                <input type="number" id="max-games-set-input" value="6" min="4" step="2"
+                    class="flex-grow p-2 border border-indigo-300 rounded-lg">
+                <button type="button" id="btn-configurar-juegos"
+                    class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150">
+                    Set Games
+                </button>
+            </div>
+            <p class="text-xs text-gray-600 mt-1">Must be even (e.g., 4, 6, 8).</p>
+            <p id="set-games-message" class="text-sm mt-1"></p>
+        </div>
       </div>
+
       <div class="mt-4">
         <label for="match-type" class="block text-sm font-medium text-gray-700">Match Type</label>
         <select id="match-type" class="border rounded p-2 mt-1 w-full">
@@ -144,21 +119,14 @@
       </div>
     </section>
 
-        <section class="bg-white p-6 rounded-2xl shadow mb-8">
+    <section class="bg-white p-6 rounded-2xl shadow mb-8">
       <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Player Registration</h2>
       <div class="grid md:grid-cols-3 gap-6">
         <div class="md:col-span-2">
           <label for="nombre-input" class="block text-sm font-medium text-gray-700">Player Name</label>
-          <div class="mt-1 mb-4">
-            <input type="text" id="nombre-input" placeholder="e.g. Novak Djokovic"
-              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-          </div>
-          <label for="foto-input" class="block text-sm font-medium text-gray-700">Player Photo (Optional)</label>
           <div class="mt-1 flex space-x-2">
-            <input type="file" id="foto-input" accept="image/*"
-              class="flex-grow p-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4
-              file:rounded-full file:border-0 file:text-sm file:font-semibold
-              file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <input type="text" id="nombre-input" placeholder="e.g. Novak Djokovic"
+              class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
             <button id="btn-agregar-participante"
               class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">Add</button>
           </div>
@@ -170,34 +138,24 @@
         <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
           <h3 class="text-lg font-semibold text-gray-800 mb-2">List (<span id="contador-participantes-list">0</span>)</h3>
           <ul id="lista-participantes" class="list-disc list-inside space-y-1 text-sm text-gray-700"></ul>
-        </div>
+                </div>
       </div>
+
       <div class="mt-6 border-t pt-4">
         <button id="btn-generate-matches"
           class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-indigo-600 hover:bg-indigo-700">
           🎾 Generate Random Matches
         </button>
       </div>
-    </section>
 
-        <section id="matches-and-standings-view" class="bg-white p-6 rounded-2xl shadow">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Matches & Standings</h2>
-      
-            <div id="matches-container" class="space-y-6">
-              </div>
-      
-      <div id="standings-container" class="mt-8">
-              </div>
-
-      <div id="playoff-container" class="mt-8 space-y-6">
-              </div>
-
+      <div id="matches-container" class="mt-4"></div>
     </section>
   </div>
 
-        <script type="module">
+    <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    // Firestore imports needed for cross-device sync
     import { getFirestore, setDoc, doc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // *** YOUR FIREBASE CONFIGURATION IS INSERTED HERE ***
@@ -227,12 +185,9 @@
       onAuthStateChanged(window.auth, async (user) => {
         if (!user) await signInAnonymously(window.auth);
         
+        // If no tournament ID is stored, use the Firebase Auth UID as the new ID
         if (!localStorage.getItem("current-tournament-id")) {
-            window.userId = window.auth.currentUser.uid;
-            // If we generate a new ID, save it for persistence
-            localStorage.setItem("current-tournament-id", window.userId); 
-        } else {
-            window.userId = localStorage.getItem("current-tournament-id");
+             window.userId = window.auth.currentUser.uid;
         }
 
         // Re-call loadAndInitializeLogic after Firebase setup completes
@@ -241,6 +196,7 @@
       });
     } else {
       console.warn("⚠️ No Firebase config — running in local mode. Data will NOT sync.");
+      // In local mode, we still call the logic, but it uses localStorage
       if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
       loadingOverlay.style.display = 'none';
     }
@@ -251,6 +207,6 @@
     window.getDoc = getDoc;
   </script>
 
-        <script type="module" src="./my-app-logic.js"></script>
+    <script type="module" src="./my-app-logic.js"></script>
 </body>
 </html>
