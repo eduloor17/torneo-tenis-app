@@ -1,203 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tennis Tournament Manager (v2)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; }
-    .match-card { margin-bottom: 1rem; }
-    .match-card.completed { border: 2px solid #10b981; opacity: 0.9; }
-    /* Estilo para el avatar */
-    .player-avatar { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background-color: #cbd5e1; color: #4b5563; font-weight: bold; font-size: 0.875rem; }
-  </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Tennis Tournament Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; }
+        .match-card { margin-bottom: 1rem; }
+        .match-card.completed { border: 2px solid #10b981; opacity: 0.9; }
+        .player-initial { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background-color: #cbd5e1; color: #4b5563; font-weight: bold; font-size: 0.875rem; }
+    </style>
 </head>
 <body>
-  <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center">
-    <div class="text-center">
-      <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      <p class="mt-3 text-lg font-semibold text-gray-700">Connecting to Cloud Tournament...</p>
-    </div>
-  </div>
+    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="text-center">
+            <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-3 text-lg font-semibold text-gray-700">Connecting to Cloud Tournament...</p>
+        </div>
+    </div>
 
-  <div id="status-message" class="fixed top-4 left-1/2 transform -translate-x-1/2 p-3 rounded-lg border-l-4 font-medium transition-opacity opacity-0 z-50"></div>
+    <div id="status-message" class="fixed top-4 left-1/2 transform -translate-x-1/2 p-3 rounded-lg border-l-4 font-medium transition-opacity opacity-0 z-50"></div>
 
-  <div class="max-w-4xl mx-auto p-6">
-    <header class="bg-white p-6 rounded-2xl shadow mb-8">
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-        <h1 class="text-3xl font-extrabold text-indigo-800">🎾 Tennis Tournament Manager (v2)</h1>
-        <div class="mt-3 md:mt-0 flex flex-col items-end">
-          <div id="tournament-id-display" class="text-right"></div>
-          <button id="btn-borrar-datos"
-            class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
-            Reset Tournament (Start New)
-          </button>
-        </div>
-      </div>
-      <div class="mt-4 pt-4 border-t border-gray-100">
-        <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-          <input type="text" id="external-id-input" placeholder="Enter a tournament ID to load"
-            class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-          <button type="submit"
-            class="px-4 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600 transition duration-150">Load</button>
-        </form>
-        <p id="load-message" class="text-sm text-gray-500 mt-2"></p>
-      </div>
-    </header>
+    <div class="max-w-4xl mx-auto p-6">
+        <header class="bg-white p-6 rounded-2xl shadow mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                <h1 class="text-3xl font-extrabold text-indigo-800">🎾 Simple Tennis Tournament Manager</h1>
+                <div class="mt-3 md:mt-0 flex flex-col items-end">
+                    <div id="tournament-id-display" class="text-right text-sm text-gray-500"></div>
+                    <button id="btn-borrar-datos"
+                        class="mt-2 text-sm text-red-500 hover:text-red-700 font-semibold transition duration-150">
+                        Reset Tournament
+                    </button>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-100">
+                <form id="load-tournament-form" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                    <input type="text" id="external-id-input" placeholder="Enter a tournament ID to load"
+                        class="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    <button type="submit"
+                        class="px-4 py-2 bg-indigo-500 text-white font-semibold rounded-lg hover:bg-indigo-600 transition duration-150">Load</button>
+                </form>
+                <p id="load-message" class="text-sm text-gray-500 mt-2"></p>
+            </div>
+            </header>
 
-    <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup</h2>
+        <section class="bg-white p-6 rounded-2xl shadow mb-8" id="configuracion">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">1. Tournament Setup (Fixed Rules: Best of 3 Sets, 6 Games per Set)</h2>
 
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        
-                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-          <label for="match-type" class="block text-sm font-medium text-indigo-700">Match Type</label>
-          <select id="match-type" class="border rounded p-2 mt-1 w-full" data-config-key="matchType">
-            <option value="singles">Singles</option>
-            <option value="doubles">Doubles (Experimental)</option>
-          </select>
-        </div>
+            <div class="grid md:grid-cols-2 gap-6">
 
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-            <label for="sets-to-win-match" class="block text-sm font-medium text-indigo-700">
-                Sets to Win Match (Current: <span id="sets-to-win-actual" class="font-extrabold">2</span>)
-            </label>
-            <select id="sets-to-win-match" class="border rounded p-2 mt-1 w-full" data-config-key="setsToWin">
-                <option value="2">Best of 3 Sets (Win 2)</option>
-                <option value="3">Best of 5 Sets (Win 3)</option>
-            </select>
-            <p class="text-xs text-gray-600 mt-1">Determines match completion.</p>
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <label for="max-jugadores-input" class="block text-sm font-medium text-gray-700">
+                        Maximum Players (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
+                    </label>
+                    <input type="number" id="max-jugadores-input" min="4" step="2" value="10"
+                        class="p-2 border border-gray-300 rounded-lg w-full" data-config-key="maxPlayers">
+                    <p class="text-xs text-gray-600 mt-1">Must be even (minimum 4).</p>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <label for="num-grupos-input" class="block text-sm font-medium text-gray-700">
+                        Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)
+                    </label>
+                    <input type="number" id="num-grupos-input" min="1" max="6" value="2"
+                        class="p-2 border border-gray-300 rounded-lg w-full" data-config-key="numGroups">
+                    <p class="text-xs text-gray-600 mt-1">Must divide total players evenly.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-2xl shadow mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Player Registration</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="md:col-span-2">
+                    <label for="nombre-input" class="block text-sm font-medium text-gray-700">Player Name</label>
+                    <div class="mt-1 flex space-x-2">
+                        <input type="text" id="nombre-input" placeholder="e.g. Rafael Nadal"
+                            class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        <button id="btn-agregar-participante"
+                            class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">Add</button>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">
+                        <span id="contador-participantes" class="font-bold text-indigo-600">0</span> of
+                        <span id="max-participantes-display" class="font-bold text-indigo-600">10</span> players registered.
+                    </p>
+                </div>
+                <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">List (<span id="contador-participantes-list">0</span>)</h3>
+                    <ul id="lista-participantes" class="list-inside space-y-1 text-sm text-gray-700"></ul>
+                </div>
+            </div>
+
+            <div class="mt-6 border-t pt-4">
+                <button id="btn-generate-matches"
+                    class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-indigo-600 hover:bg-indigo-700">
+                    🎾 Generate Group Matches
+                </button>
+            </div>
+        </section>
+
+        <div id="matches-section" class="mb-8">
+            <div id="group-matches-container"></div>
+            <div id="standings-container"></div>
+            <div id="playoff-container"></div>
+        </div>
         </div>
 
-                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-            <label for="max-games-set-input" class="block text-sm font-medium text-indigo-700">
-                Games per Set (Current: <span id="max-games-set-actual" class="font-extrabold">6</span>)
-            </label>
-            <select id="max-games-set-input" class="border rounded p-2 mt-1 w-full" data-config-key="maxGamesPerSet">
-                <option value="4">Pro Set (4 Games)</option>
-                <option value="6">Standard (6 Games)</option>
-                <option value="8">Long Pro Set (8 Games)</option>
-            </select>
-            <p class="text-xs text-gray-600 mt-1">Games needed to win a set (must lead by 2).</p>
-        </div>
+    <script type="module">
+        // Importaciones de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <label for="max-jugadores-input" class="block text-sm font-medium text-gray-700">
-            Maximum Players/Teams (Current: <span id="max-jugadores-actual" class="font-extrabold">10</span>)
-          </label>
-          <input type="number" id="max-jugadores-input" min="4" step="2" value="10"
-            class="p-2 border border-gray-300 rounded-lg w-full" data-config-key="maxPlayers">
-          <p class="text-xs text-gray-600 mt-1">Must be even (minimum 4).</p>
-        </div>
+        // *** TU CONFIGURACIÓN DE FIREBASE VA AQUÍ ***
+        const firebaseConfig = {
+            // Reemplaza esto con tu configuración real de Firebase
+            apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA",
+            authDomain: "precisiontennisscores.firebaseapp.com",
+            projectId: "precisiontennisscores",
+            storageBucket: "precisiontennisscores.firebasestorage.app",
+            messagingSenderId: "847832314171",
+            appId: "1:847832314171:web:ce61405a155f67bf4ac71e",
+        };
         
-                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <label for="num-grupos-input" class="block text-sm font-medium text-gray-700">
-            Number of Groups (Current: <span id="num-grupos-actual" class="font-extrabold">2</span>)
-          </label>
-          <input type="number" id="num-grupos-input" min="1" max="6" value="2"
-            class="p-2 border border-gray-300 rounded-lg w-full" data-config-key="numGroups">
-          <p class="text-xs text-gray-600 mt-1">Must divide total players evenly.</p>
-        </div>
+        // Variables globales de Firebase
+        window.db = null;
+        // Si no hay ID de torneo guardado, genera uno nuevo (o usa UID de Firebase)
+        window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
+        window.isCloudMode = false;
+
+        const loadingOverlay = document.getElementById('loading-overlay');
+        loadingOverlay.style.display = 'flex';
+
+        if (firebaseConfig.apiKey) { // Comprueba si la configuración es válida
+            window.app = initializeApp(firebaseConfig);
+            window.db = getFirestore(window.app);
+            window.auth = getAuth(window.app);
+            window.isCloudMode = true;
+
+            onAuthStateChanged(window.auth, async (user) => {
+                if (!user) await signInAnonymously(window.auth);
+                
+                // Usamos el UID si no hay un ID de torneo ya establecido
+                if (!localStorage.getItem("current-tournament-id")) {
+                    window.userId = window.auth.currentUser.uid;
+                }
+
+                if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
+                loadingOverlay.style.display = 'none';
+            });
+        } else {
+            console.warn("⚠️ No Firebase config — running in local mode. Data will NOT sync.");
+            if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
+            loadingOverlay.style.display = 'none';
+        }
         
-      </div>
-    </section>
+        window.setDoc = setDoc;
+        window.doc = doc;
+        window.getDoc = getDoc;
+    </script>
 
-    <section class="bg-white p-6 rounded-2xl shadow mb-8">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">2. Player Registration</h2>
-      <div class="grid md:grid-cols-3 gap-6">
-        <div class="md:col-span-2">
-          <label for="nombre-input" class="block text-sm font-medium text-gray-700">Player/Team Name</label>
-          <div class="mt-1 flex space-x-2">
-            <input type="text" id="nombre-input" placeholder="e.g. Novak Djokovic / Team A"
-              class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-          </div>
-          <label for="photo-url-input" class="block text-sm font-medium text-gray-700 mt-3">Photo URL (Optional)</label>
-          <div class="mt-1 flex space-x-2">
-            <input type="url" id="photo-url-input" placeholder="http://example.com/photo.jpg"
-              class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-            <button id="btn-agregar-participante"
-              class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-150">Add</button>
-          </div>
-          <p class="text-sm text-gray-500 mt-2">
-            <span id="contador-participantes" class="font-bold text-indigo-600">0</span> of
-            <span id="max-participantes-display" class="font-bold text-indigo-600">10</span> players/teams registered.
-          </p>
-        </div>
-        <div class="md:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">List (<span id="contador-participantes-list">0</span>)</h3>
-          <ul id="lista-participantes" class="list-inside space-y-1 text-sm text-gray-700"></ul>
-        </div>
-      </div>
-
-      <div class="mt-6 border-t pt-4">
-        <button id="btn-generate-matches"
-          class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-indigo-600 hover:bg-indigo-700">
-          🎾 Generate Group Matches
-        </button>
-      </div>
-    </section>
-    
-    <div id="matches-section" class="mb-8">
-        <div id="group-matches-container"></div>
-        <div id="standings-container"></div>
-        <div id="playoff-container"></div>
-    </div>
-      </div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, setDoc, doc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // *** TU CONFIGURACIÓN DE FIREBASE VA AQUÍ ***
-    const firebaseConfig = {
-      apiKey: "AIzaSyAPUcbUnT7Fabp8TQUj-_5M4Ox4Ip_c3GA",
-      authDomain: "precisiontennisscores.firebaseapp.com",
-      projectId: "precisiontennisscores",
-      storageBucket: "precisiontennisscores.firebasestorage.app",
-      messagingSenderId: "847832314171",
-      appId: "1:847832314171:web:ce61405a155f67bf4ac71e",
-      measurementId: "G-C842BQXWXN"
-    };
-    
-    window.db = null;
-    window.userId = localStorage.getItem("current-tournament-id") || crypto.randomUUID(); 
-    window.isCloudMode = false;
-
-    const loadingOverlay = document.getElementById('loading-overlay');
-    loadingOverlay.style.display = 'flex'; 
-
-    if (Object.keys(firebaseConfig).length > 0) {
-      window.app = initializeApp(firebaseConfig);
-      window.db = getFirestore(window.app);
-      window.auth = getAuth(window.app);
-      window.isCloudMode = true;
-
-      onAuthStateChanged(window.auth, async (user) => {
-        if (!user) await signInAnonymously(window.auth);
-        
-        if (!localStorage.getItem("current-tournament-id")) {
-             window.userId = window.auth.currentUser.uid;
-        }
-
-        if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
-        loadingOverlay.style.display = 'none';
-      });
-    } else {
-      console.warn("⚠️ No Firebase config — running in local mode. Data will NOT sync.");
-      if (typeof window.loadAndInitializeLogic === 'function') window.loadAndInitializeLogic();
-      loadingOverlay.style.display = 'none';
-    }
-    
-    window.setDoc = setDoc;
-    window.doc = doc;
-    window.getDoc = getDoc;
-  </script>
-
-  <script type="module" src="./my-app-logic.js"></script>
+    <script type="module" src="./my-app-logic.js"></script>
 </body>
 </html>
