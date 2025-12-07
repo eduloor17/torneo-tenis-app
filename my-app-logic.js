@@ -6,7 +6,8 @@ let players = [];
 let maxPlayers = 10;
 let numGroups = 2;
 let mode = "singles"; // or "doubles"
-let maxGamesPerSet = 6; // MODIFICADO: Máximo de juegos por set por defecto es 6
+let maxGamesPerSet = 6; // Máximo de juegos por set por defecto es 6 (Pro Set)
+let setsToWinMatch = 1; // Por defecto: 1 set para ganar (para la fase de grupos Pro Set)
 let matches = [];
 let playoffMatches = []; 
 
@@ -36,10 +37,10 @@ function setupUI() {
   // DOM elements
   const maxInput = document.getElementById("max-jugadores-input");
   const groupInput = document.getElementById("num-grupos-input");
-  const gamesPerSetInput = document.getElementById("max-games-set-input"); // NEW
+  const gamesPerSetInput = document.getElementById("max-games-set-input"); 
   const btnSetMax = document.getElementById("btn-configurar-max");
   const btnSetGroups = document.getElementById("btn-configurar-grupos");
-  const btnSetGames = document.getElementById("btn-configurar-juegos"); // NEW
+  const btnSetGames = document.getElementById("btn-configurar-juegos"); 
   const addPlayerBtn = document.getElementById("btn-agregar-participante");
   const playerNameInput = document.getElementById("nombre-input");
   const matchTypeSelector = document.getElementById("match-type");
@@ -177,7 +178,8 @@ function setupUI() {
         maxPlayers = 10;
         numGroups = 2;
         mode = "singles";
-        maxGamesPerSet = 6; // Reset new variable to default 6
+        maxGamesPerSet = 6; 
+        setsToWinMatch = 1; // Reset to default 1 set to win
         matches = [];
         playoffMatches = []; 
         
@@ -193,7 +195,17 @@ function setupUI() {
 // DATA HANDLING (CLOUD & LOCAL)
 // ---------------------------
 async function saveData(saveToCloud = false) {
-  const data = { players, maxPlayers, numGroups, mode, maxGamesPerSet, matches, playoffMatches, timestamp: Date.now() }; // Save new variable
+  const data = { 
+    players, 
+    maxPlayers, 
+    numGroups, 
+    mode, 
+    maxGamesPerSet, 
+    setsToWinMatch, // Save new variable
+    matches, 
+    playoffMatches, 
+    timestamp: Date.now() 
+}; 
   
   // 1. Save to Local Storage (always happens)
   localStorage.setItem("tournament-data", JSON.stringify(data));
@@ -247,6 +259,8 @@ async function loadData(loadFromCloud = false) {
   if (data.mode) mode = data.mode;
   // If data.maxGamesPerSet exists, use it. Otherwise, use the new default (6).
   maxGamesPerSet = data.maxGamesPerSet !== undefined ? data.maxGamesPerSet : 6;
+  // If data.setsToWinMatch exists, use it. Otherwise, use the new default (1).
+  setsToWinMatch = data.setsToWinMatch !== undefined ? data.setsToWinMatch : 1; 
   
   if (data.matches) matches = data.matches;
   if (data.playoffMatches) playoffMatches = data.playoffMatches; 
@@ -340,6 +354,10 @@ function generateMatches() {
     showStatus(`⚠️ Cannot generate matches. Total players (${players.length}) must be divisible by number of groups (${numGroups}).`, "red");
     return;
   }
+  
+  // Establecer a 1 set para ganar en la fase de grupos (Pro Set)
+  setsToWinMatch = 1;
+  saveData(false); // Update local setting
 
   const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
   const playersPerGroup = players.length / numGroups;
@@ -404,6 +422,9 @@ function generatePlayoffMatches(standings) {
 
     const groupMatchesCompleted = matches.every(m => m.winner !== null);
     if (!groupMatchesCompleted) return;
+    
+    // Establecer a 2 sets para ganar en la fase eliminatoria (Mejor de 3)
+    setsToWinMatch = 2; 
 
     const player1st = top4[0];
     const player2nd = top4[1];
@@ -451,7 +472,7 @@ function renderMatches() {
     // ----------------------------------------------------------------
     let html = `<section class="bg-white p-6 rounded-2xl shadow mb-8 mt-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Enter Group Match Results (Pro Set to ${maxGamesPerSet} Games)</h2>
-        <p class="text-sm text-gray-600 mb-4">A match is won by the first player to reach **${maxGamesPerSet} games** with a two-game lead. If tied at **${maxGamesPerSet - 1}-${maxGamesPerSet - 1}**, a tiebreak is played, and the final score will be **${maxGamesPerSet}-${maxGamesPerSet - 1}**.</p>
+        <p class="text-sm text-gray-600 mb-4">A match is won by the first player to reach **${maxGamesPerSet} games** with a two-game lead. If tied at **${maxGamesPerSet - 1}-${maxGamesPerSet - 1}**, a tiebreak is played, and the final score will be **${maxGamesPerSet}-${maxGamesPerSet - 1}**. **Groups are decided by winning 1 set.**</p>
         <div id="match-list" class="space-y-4">`;
 
     const groupedMatches = matches.reduce((acc, match) => {
@@ -523,8 +544,9 @@ function renderMatchCard(match) {
     
     const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
     
-    const stageInfo = match.stage ? match.stage : `Group ${match.group}`;
-    const inputClass = match.stage ? 'playoff-set-input' : 'group-set-input';
+    const isPlayoff = match.stage;
+    const stageInfo = isPlayoff ? match.stage : `Group ${match.group}`;
+    const inputClass = isPlayoff ? 'playoff-set-input' : 'group-set-input';
 
     let cardHtml = `
         <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200">
@@ -597,16 +619,30 @@ function renderSetScoreRow(match, pKey, name, inputClass) {
     return rowHtml;
 }
 
-// Helper to format the match score string for sets (e.g., 8-0, 6-8)
+// Helper to format the match score string for sets (e.g., 1-0 (6-4, -))
 function getSetsScoreString(match) {
-    if (match.scores.length === 0) return '0 Sets';
+    if (match.scores.length === 0) return '0-0 (0 Sets)';
 
-    return match.scores.map(set => {
+    let p1Sets = 0;
+    let p2Sets = 0;
+
+    const gameScores = match.scores.map(set => {
         const p1Games = set[0];
         const p2Games = set[1];
+        
+        // Solo contamos sets completos para la puntuación total de sets
+        const setWinner = checkSetWinner(set);
+        if (setWinner === 'p1') {
+            p1Sets++;
+        } else if (setWinner === 'p2') {
+            p2Sets++;
+        }
+
         if (p1Games === undefined || p2Games === undefined) return '-'; 
         return `${p1Games}-${p2Games}`;
     }).join(', ');
+    
+    return `${p1Sets}-${p2Sets} (${gameScores})`;
 }
 
 
@@ -724,6 +760,8 @@ function checkSetWinner(setScore) {
     } 
     
     // Rule 2: Win at max-(max-1) (e.g., 6-5 after a tiebreak for a 6-game set, or 8-7 for an 8-game set)
+    // Note: This rule assumes a tiebreak is played at (max - 1) all, resulting in a score of max-(max-1)
+    // The previous rule covers scores like 6-0, 6-1, 6-2, 6-3, 7-5, 8-6, etc.
     else if (p1Games === max && p2Games === max - 1) {
         return 'p1';
     } else if (p2Games === max && p1Games === max - 1) {
@@ -737,6 +775,9 @@ function checkMatchWinner(match) {
     let winner = null;
     let p1SetWins = 0;
     let p2SetWins = 0;
+    
+    // Determinar el umbral de sets a ganar: 1 para grupos, 2 para playoffs.
+    const threshold = match.group ? 1 : 2; 
 
     // Check set results
     match.scores.forEach(set => {
@@ -752,10 +793,10 @@ function checkMatchWinner(match) {
     const p1Id = match.p1.constructor === Array ? match.p1.join(' / ') : match.p1;
     const p2Id = match.p2.constructor === Array ? match.p2.join(' / ') : match.p2;
 
-    // Match winner is the one who wins the most sets (or the only set)
-    if (p1SetWins > p2SetWins && p1SetWins > 0) {
+    // El ganador es quien alcanza el umbral de sets ganados.
+    if (p1SetWins >= threshold) {
         winner = p1Id;
-    } else if (p2SetWins > p1SetWins && p2SetWins > 0) {
+    } else if (p2SetWins >= threshold) {
         winner = p2Id;
     }
 
@@ -938,7 +979,7 @@ function createStandingsTable(statsArray, isGlobal) {
 function renderPlayoffs(playoffMatches) {
     let html = `<div class="mt-8">
         <h3 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2">Fase Eliminatoria (Top 4)</h3>
-        <p class="text-sm text-gray-600 mb-4">Los partidos son generados automáticamente en base a la Clasificación Global de la Fase de Grupos.</p>
+        <p class="text-sm text-gray-600 mb-4">Los partidos son generados automáticamente en base a la Clasificación Global de la Fase de Grupos. **Esta fase requiere ganar 2 sets (Mejor de 3).**</p>
         <div id="playoff-match-list" class="space-y-4">`;
 
     playoffMatches.forEach(match => {
