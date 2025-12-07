@@ -1,14 +1,13 @@
-// my-app-logic.js (Versión Simple y Robusta - Final)
+// my-app-logic.js (Versión con Fotos, Configuración Completa y Estructura de Torneo)
 
 // --- 1. CONSTANTES Y ESTADO GLOBAL ---
 
-// Reglas de juego simplificadas (Fijas)
 const DEFAULT_CONFIG = {
     maxPlayers: 10,
     numGroups: 2,
     setsToWin: 2,       
     maxGamesPerSet: 6,  
-    matchType: 'singles', // 'singles' o 'doubles'
+    matchType: 'singles', 
 };
 
 let players = [];
@@ -16,8 +15,10 @@ let matches = [];
 let playoffMatches = [];
 let config = {...DEFAULT_CONFIG}; 
 
-let currentStage = 'group'; 
-let currentStep = 'groups'; 
+let currentStage = 'group'; // 'group' o 'playoff'
+let currentStep = 'groups'; // 'groups', 'qf', 'sf', 'final', 'finalStandings'
+
+let tempPhotoDataURL = null; // Variable temporal para la foto del jugador
 
 // Variables DOM
 let groupMatchesContainer, standingsContainer, playoffContainer, statusMessage;
@@ -42,7 +43,6 @@ async function loadData() {
                 data = docSnap.data();
                 dataLoaded = true;
                 showTournamentId(window.userId);
-                showStatus("Tournament data loaded from Cloud.", "blue");
             } 
         } catch (e) {
             console.error("Error loading cloud data: ", e);
@@ -64,6 +64,7 @@ async function loadData() {
         const deserializeMatches = (matchArray) => {
             return (matchArray || []).map(m => ({
                 ...m,
+                // Asume que las puntuaciones se guardaron como JSON string
                 scores: typeof m.scores === 'string' ? JSON.parse(m.scores) : m.scores || [[undefined, undefined]]
             }));
         };
@@ -74,10 +75,10 @@ async function loadData() {
         currentStage = data.currentStage || 'group';
         currentStep = data.currentStep || 'groups';
         
-        // Cargar SOLO las opciones configurables
         config.maxPlayers = parseInt(data.config?.maxPlayers || data.maxPlayers) || DEFAULT_CONFIG.maxPlayers;
         config.numGroups = parseInt(data.config?.numGroups || data.numGroups) || DEFAULT_CONFIG.numGroups;
-        config.matchType = data.config?.matchType || DEFAULT_CONFIG.matchType; // <-- CARGA DEL TIPO DE PARTIDO
+        config.matchType = data.config?.matchType || DEFAULT_CONFIG.matchType;
+        showStatus("Tournament data loaded.", "blue");
     }
 }
 
@@ -92,12 +93,14 @@ function saveData(silent = false) {
         config: { 
             maxPlayers: config.maxPlayers,
             numGroups: config.numGroups,
-            matchType: config.matchType, // <-- GUARDAR TIPO DE PARTIDO
+            matchType: config.matchType,
+            setsToWin: config.setsToWin,
+            maxGamesPerSet: config.maxGamesPerSet,
         },
         timestamp: new Date().toISOString()
     };
     
-    // Serialización para Firestore (Solución para arrays anidados)
+    // Serialización para Firestore (convierte arrays anidados a JSON string)
     const serializeMatches = (matchArray) => {
         return (matchArray || []).map(m => ({
             ...m,
@@ -131,7 +134,6 @@ function saveData(silent = false) {
  */
 function showStatus(message, type) {
     if (!statusMessage) return;
-    
     const classMap = {
         'green': 'bg-green-100 border-green-400 text-green-700',
         'red': 'bg-red-100 border-red-400 text-red-700',
@@ -139,15 +141,11 @@ function showStatus(message, type) {
         'indigo': 'bg-indigo-100 border-indigo-400 text-indigo-700',
         'orange': 'bg-orange-100 border-orange-400 text-orange-700',
     };
-    
     statusMessage.textContent = message;
     statusMessage.className = `fixed top-4 left-1/2 transform -translate-x-1/2 p-3 rounded-lg border-l-4 font-medium transition-opacity z-50 ${classMap[type]}`;
     statusMessage.style.opacity = '1';
-
     if (window.statusTimeout) clearTimeout(window.statusTimeout);
-    window.statusTimeout = setTimeout(() => {
-        statusMessage.style.opacity = '0';
-    }, 4000);
+    window.statusTimeout = setTimeout(() => { statusMessage.style.opacity = '0'; }, 4000);
 }
 
 function showTournamentId(id) {
@@ -157,10 +155,35 @@ function showTournamentId(id) {
     }
 }
 
+
 // --- 3. GESTIÓN DE JUGADORES Y CONFIGURACIÓN ---
 
 /**
- * Actualiza la UI de configuración con los valores actuales. (Corregido)
+ * Maneja la carga de la foto (archivo local a Data URL).
+ */
+function handlePhotoUpload(event) {
+    const file = event.target.files[0];
+    const fileNameDisplay = document.getElementById('photo-file-name');
+    
+    tempPhotoDataURL = null; 
+    
+    if (file) {
+        fileNameDisplay.textContent = file.name;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            tempPhotoDataURL = e.target.result; // Data URL (Base64)
+            showStatus(`Photo '${file.name}' ready for upload.`, "blue");
+        };
+        reader.readAsDataURL(file);
+    } else {
+        fileNameDisplay.textContent = 'No file selected.';
+        showStatus("Photo file cleared.", "orange");
+    }
+}
+
+/**
+ * Actualiza la UI de configuración con los valores actuales.
  */
 function updateConfigUI() {
     const entityType = config.matchType === 'singles' ? 'Player' : 'Team';
@@ -180,7 +203,7 @@ function updateConfigUI() {
         counterDisplay.innerHTML = `<span id="contador-participantes" class="font-bold text-indigo-600">${players.length}</span> of <span id="max-participantes-display" class="font-bold text-indigo-600">${config.maxPlayers}</span> ${entityTypePlural} registered.`;
     }
 
-    // 3. Actualizar inputs/selects (incluido el nuevo matchType)
+    // 3. Actualizar inputs/selects
     document.querySelectorAll('[data-config-key]').forEach(element => {
         const key = element.dataset.configKey;
         if (config[key] !== undefined) {
@@ -226,7 +249,7 @@ function handleConfigChange(event) {
     }
     
     config[key] = value;
-    updateConfigUI(); // Reflejar el cambio
+    updateConfigUI();
     saveData(false);
 }
 
@@ -258,10 +281,18 @@ function renderPlayerList() {
 }
 
 /**
- * Obtiene las iniciales del jugador.
+ * Obtiene las iniciales o la imagen del jugador.
  */
-function getPlayerInitial(player) {
-    const initial = player.name.charAt(0).toUpperCase();
+function getPlayerInitial(playerInfo) {
+    // Si playerInfo es un objeto de jugador, tiene `photoURL`. Si es un nombre, lo buscamos.
+    const player = players.find(p => p.name === playerInfo.name) || playerInfo;
+
+    if (player.photoURL) {
+        return `<img src="${player.photoURL}" class="w-8 h-8 rounded-full object-cover mr-2 border border-gray-300" alt="${player.name.charAt(0)}">`;
+    }
+    
+    // Muestra iniciales por defecto
+    const initial = player.name ? player.name.charAt(0).toUpperCase() : '?';
     return `<div class="player-initial bg-indigo-200 text-indigo-700 mr-2">${initial}</div>`;
 }
 
@@ -288,7 +319,6 @@ function handleAddPlayer() {
         return;
     }
 
-    // Asignar el grupo
     const groupLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, config.numGroups);
     const groupIndex = players.length % config.numGroups;
     const group = groupLetters[groupIndex];
@@ -297,11 +327,17 @@ function handleAddPlayer() {
         id: crypto.randomUUID(), 
         name: name, 
         group: group, 
+        photoURL: tempPhotoDataURL || null // <-- Guardar la URL de la foto
     });
 
     nameInput.value = '';
     
-    updateConfigUI(); // Llama a esto para actualizar el contador en la lista
+    // Limpiar el estado de la foto después de añadir
+    document.getElementById('photo-upload-input').value = '';
+    document.getElementById('photo-file-name').textContent = 'No file selected.';
+    tempPhotoDataURL = null; // Resetear la variable temporal
+    
+    updateConfigUI(); 
     saveData(true);
     showStatus(`${entityType} ${name} added to Group ${group}.`, "blue");
 }
@@ -366,29 +402,129 @@ function handleResetTournament() {
     }
 }
 
-// --- 4. LÓGICA CENTRAL DEL TORNEO (Necesitas tus funciones de Standings y Playoff aquí) ---
+// --- 4. LÓGICA CENTRAL DEL TORNEO (ESQUELETOS DE FUNCIONES) ---
 
+/**
+ * Genera el enfrentamiento de todos contra todos (Round Robin) dentro de cada grupo.
+ */
 function generateMatches() {
-    // ... (Tu lógica de Round Robin) ...
+    matches = [];
+    const groups = {};
+    players.forEach(p => {
+        if (!groups[p.group]) {
+            groups[p.group] = [];
+        }
+        groups[p.group].push(p.name);
+    });
+
+    Object.keys(groups).forEach(groupKey => {
+        const groupPlayers = groups[groupKey];
+        for (let i = 0; i < groupPlayers.length; i++) {
+            for (let j = i + 1; j < groupPlayers.length; j++) {
+                const matchId = `M${matches.length + 1}-G${groupKey}`;
+                matches.push({
+                    id: matchId,
+                    group: groupKey,
+                    p1: groupPlayers[i],
+                    p2: groupPlayers[j],
+                    scores: [[undefined, undefined]], // Inicia con 1 set
+                    winner: null,
+                    stage: `Group ${groupKey}`
+                });
+            }
+        }
+    });
 }
 
+/**
+ * Calcula el ganador del partido basado en los sets ganados.
+ * ⚠️ DEBES COMPLETAR LA LÓGICA DE JUEGOS Y SETS AQUÍ.
+ */
 function checkMatchWinner(match) {
-    // ... (Tu lógica de Sets ganados, usando DEFAULT_CONFIG) ...
+    let p1Sets = 0;
+    let p2Sets = 0;
+    let p1GamesWon = 0;
+    let p2GamesWon = 0;
+    
+    const setsNeededToWinMatch = config.setsToWin; 
+
+    match.scores.forEach(([score1, score2]) => {
+        if (score1 !== undefined && score2 !== undefined) {
+             // Lógica de Sets (Simplificada para el esqueleto: mayor juego = set)
+             if (score1 > score2 && (score1 >= config.maxGamesPerSet || (score1 === config.maxGamesPerSet && score2 <= config.maxGamesPerSet - 2))) {
+                 p1Sets++;
+             } else if (score2 > score1 && (score2 >= config.maxGamesPerSet || (score2 === config.maxGamesPerSet && score1 <= config.maxGamesPerSet - 2))) {
+                 p2Sets++;
+             }
+             // Asumiendo tie-break simple si el set tiene una puntuación completa (e.g., 7-6)
+             else if (score1 > score2) p1Sets++; 
+             else if (score2 > score1) p2Sets++;
+
+             p1GamesWon += score1 || 0;
+             p2GamesWon += score2 || 0;
+        }
+    });
+    
+    let winner = null;
+    if (p1Sets >= setsNeededToWinMatch) winner = match.p1;
+    else if (p2Sets >= setsNeededToWinMatch) winner = match.p2;
+
+    return { winner, p1Sets, p2Sets, p1GamesWon, p2GamesWon };
 }
 
+/**
+ * Calcula la clasificación (Standings) por grupo.
+ * ⚠️ DEBES IMPLEMENTAR AQUÍ TU LÓGICA DE STANDINGS (Puntos, Sets Perdidos, etc.).
+ */
 function calculateStandings() {
-    // ⚠️ RECUERDA: Implementa aquí tu lógica de cálculo de clasificación
-    console.warn("calculateStandings function not fully implemented in this version.");
-    return []; // Retorna datos de standings
+    console.warn("calculateStandings: Lógica de clasificación no implementada. Retornando array vacío.");
+    // Aquí es donde calcularías: Partidos Ganados, Puntos, Sets Diferencia, Juegos Diferencia.
+    const standings = {};
+    // ... Tu lógica para iterar sobre `matches` y `players`
+    return standings; 
 }
 
-function handleGeneratePlayoff() {
-    // ⚠️ RECUERDA: Implementa aquí la lógica para generar el bracket de playoff
-    console.warn("handleGeneratePlayoff function not fully implemented in this version.");
+/**
+ * Renderiza la tabla de Standings.
+ * ⚠️ DEBES IMPLEMENTAR AQUÍ LA FUNCIÓN PARA MOSTRAR LA CLASIFICACIÓN.
+ */
+function renderStandings(standingsData) {
+     if (!standingsContainer) return;
+     // ... Tu código para crear la tabla HTML
+     standingsContainer.innerHTML = '<h3>⚠️ Group Standings (Not implemented in this version)</h3>';
+}
+
+/**
+ * Genera la estructura de eliminatorias (Playoff Bracket).
+ * ⚠️ DEBES IMPLEMENTAR AQUÍ LA LÓGICA PARA CREAR LOS PARTIDOS DE PLAYOFF.
+ */
+function generatePlayoffStructure(standings) {
+    playoffMatches = [];
+    currentStep = 'qf'; // QF, SF, FINAL
+    
+    // Lógica: Tomar el top N de cada grupo según `standings` y crear los primeros partidos.
+    
     currentStage = 'playoff';
-    // generatePlayoffStructure();
-    // renderMatches();
-    saveData(false);
+    showStatus("Playoff bracket generated.", "green");
+}
+
+/**
+ * Renderiza la estructura de eliminatorias (Playoff Bracket).
+ * ⚠️ DEBES IMPLEMENTAR AQUÍ LA FUNCIÓN PARA MOSTRAR EL BRACKET.
+ */
+function renderPlayoffs() {
+    if (!playoffContainer) return;
+    // ... Tu código para renderizar el bracket con los partidos de `playoffMatches`
+    playoffContainer.innerHTML = '<h2>🏆 Playoff Bracket (Not implemented in this version)</h2>';
+}
+
+/**
+ * Avanza el ganador de un partido de playoff al siguiente partido.
+ * ⚠️ DEBES IMPLEMENTAR AQUÍ LA FUNCIÓN PARA CONECTAR EL BRACKET.
+ */
+function updateNextPlayoffMatch(completedMatch) {
+    // ... Lógica para encontrar el siguiente partido y asignar el ganador
+    console.warn("updateNextPlayoffMatch: Logic to advance winner not implemented.");
 }
 
 
@@ -396,7 +532,11 @@ function handleGeneratePlayoff() {
 
 function getPlayerDisplayInfo(pName) {
     const player = players.find(pl => pl.name === pName);
-    return { name: pName, isPlaceholder: !player };
+    return { 
+        name: pName, 
+        isPlaceholder: !player && (pName.startsWith('Winner') || pName.startsWith('Loser')),
+        photoURL: player ? player.photoURL : null
+    };
 }
 
 function renderMatchCard(match) {
@@ -404,9 +544,9 @@ function renderMatchCard(match) {
     const p1Info = getPlayerDisplayInfo(match.p1);
     const p2Info = getPlayerDisplayInfo(match.p2);
     
-    const stageInfo = match.stage ? match.stage : `Group ${match.group}`;
+    const stageInfo = match.stage || `Match ${match.id}`;
     const cardClass = isCompleted ? 'match-card completed ring-4 ring-green-300' : 'match-card';
-    const maxInputGames = DEFAULT_CONFIG.maxGamesPerSet + 1; 
+    const maxInputGames = config.maxGamesPerSet + 1; 
 
     let cardHtml = `
         <div class="${cardClass} p-4 bg-white rounded-lg shadow transition duration-200" id="match-card-${match.id}">
@@ -435,7 +575,7 @@ function renderMatchCard(match) {
                     + Add Set
                 </button>
                 <p class="text-sm font-semibold text-gray-900">
-                    Sets: <span class="text-indigo-600 font-bold">${getSetsScoreString(match)} (Best of ${DEFAULT_CONFIG.setsToWin * 2 - 1})</span>
+                    Sets: <span class="text-indigo-600 font-bold">${getSetsScoreString(match)} (Best of ${config.setsToWin * 2 - 1})</span>
                 </p>
                 <p class="text-sm font-semibold ${isCompleted ? 'text-green-700' : 'text-gray-500'}" id="winner-status-${match.id}">
                     ${isCompleted ? `🏆 **Winner:** ${match.winner}` : 'Status: In Progress'}
@@ -448,7 +588,8 @@ function renderMatchCard(match) {
 
 function renderSetScoreRow(match, pKey, pInfo, maxInputGames) {
     const isP1 = pKey === 'p1';
-    const isDisabled = match.winner !== null || pInfo.isPlaceholder;
+    // Si es un placeholder (e.g., 'Winner of Match 5'), el input está deshabilitado
+    const isDisabled = match.winner !== null || pInfo.isPlaceholder; 
     const name = pInfo.name;
 
     let totalGames = 0;
@@ -472,7 +613,7 @@ function renderSetScoreRow(match, pKey, pInfo, maxInputGames) {
     return `
         <tr>
             <td class="px-3 py-2 font-medium text-gray-900 flex items-center">
-                ${getPlayerInitial(pInfo)} ${name}
+                ${getPlayerInitial(pInfo)} <span class="truncate">${name}</span>
             </td>
             ${setInputsHtml}
             <td class="px-3 py-2 text-center text-sm font-bold text-indigo-600">${totalGames}</td>
@@ -486,88 +627,46 @@ function getSetsScoreString(match) {
 }
 
 /**
- * Re-renderiza una sola tarjeta de partido. (Corrección del error TypeError)
+ * Re-renderiza una sola tarjeta de partido y re-adjunta listeners.
  */
 function reRenderMatchCard(match) {
-    const oldCard = document.getElementById(`match-card-${match.id}`);
-    if (oldCard) {
-        const newHtml = renderMatchCard(match);
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = newHtml;
+    const cardList = document.querySelectorAll(`[id^='match-card-${match.id}']`);
+    if (cardList.length === 0) return;
+
+    // Solo re-renderizamos la primera (asumiendo que los IDs son únicos)
+    const oldCard = cardList[0]; 
+    const newHtml = renderMatchCard(match);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = newHtml;
+    
+    const newCard = tempDiv.querySelector(`#match-card-${match.id}`);
+    
+    if (newCard) {
+        oldCard.parentNode.replaceChild(newCard, oldCard);
         
-        // CORRECCIÓN CLAVE
-        const newCard = tempDiv.querySelector(`#match-card-${match.id}`);
-        
-        if (newCard) {
-            oldCard.parentNode.replaceChild(newCard, oldCard);
-            
-            newCard.querySelectorAll('.set-score-input').forEach(input => {
-                input.removeEventListener('change', handleScoreChange);
-                input.addEventListener('change', handleScoreChange);
-            });
-            newCard.querySelector('.btn-add-set')?.addEventListener('click', handleAddSet);
-        }
+        newCard.querySelectorAll('.set-score-input').forEach(input => {
+            input.removeEventListener('change', handleScoreChange);
+            input.addEventListener('change', handleScoreChange);
+        });
+        newCard.querySelector('.btn-add-set')?.addEventListener('click', handleAddSet);
     }
 }
 
-function renderMatches() {
-    if (!groupMatchesContainer || !playoffContainer || !standingsContainer) {
-        return; 
-    }
-    
-    groupMatchesContainer.innerHTML = ''; 
-    playoffContainer.innerHTML = '';
-    standingsContainer.innerHTML = ''; 
-    
-    if (currentStep === 'finalStandings') {
-        // renderFinalStandings();
-        return;
-    }
+/**
+ * Añade un set vacío a un partido.
+ */
+function handleAddSet(event) {
+    const matchId = event.target.dataset.matchId;
+    let match = matches.find(m => m.id === matchId) || playoffMatches.find(m => m.id === matchId);
 
-    if (currentStage === 'group') {
-        // Renderizar partidos de grupo
-        // ... (Tu lógica para agrupar y renderizar partidos por grupo) ...
-        
-        // Renderizar Standings y botón de Playoff
-        // ⚠️ DEBES RECUPERAR calculateStandings()
-        const standingsData = calculateStandings();
-        // renderStandings(standingsData); 
-        
-        const groupMatchesCompleted = matches.every(m => m.winner !== null);
-        const hasSufficientPlayers = players.length >= 4;
+    if (!match || match.winner !== null) return;
 
-        if (groupMatchesCompleted && hasSufficientPlayers) {
-            const btnContainer = document.createElement('div');
-            btnContainer.className = 'mt-6 pt-4 border-t';
-            btnContainer.innerHTML = `
-                <button id="btn-generate-playoff"
-                    class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-green-600 hover:bg-green-700">
-                    🥇 Generate Playoff Bracket (Top players from Groups)
-                </button>
-            `;
-            standingsContainer.appendChild(btnContainer);
-            document.getElementById('btn-generate-playoff')?.addEventListener('click', handleGeneratePlayoff);
-        }
-
-    } else if (currentStage === 'playoff') {
-        // Renderizar partidos de playoff
-        // ...
-    }
-
-    addEventListeners();
+    match.scores.push([undefined, undefined]);
+    reRenderMatchCard(match);
+    showStatus(`Added new set to match ${match.id}.`, "blue");
+    saveData(true);
 }
 
-function addEventListeners() {
-    document.querySelectorAll('.set-score-input').forEach(input => {
-        input.removeEventListener('change', handleScoreChange);
-        input.addEventListener('change', handleScoreChange);
-    });
-    
-    document.querySelectorAll('.btn-add-set').forEach(button => {
-        button.removeEventListener('click', handleAddSet);
-        // button.addEventListener('click', handleAddSet); // ⚠️ Asegúrate de que handleAddSet existe
-    });
-}
 
 function handleScoreChange(event) {
     const input = event.target;
@@ -583,7 +682,7 @@ function handleScoreChange(event) {
         return;
     }
 
-    const maxInputGames = DEFAULT_CONFIG.maxGamesPerSet + 1; 
+    const maxInputGames = config.maxGamesPerSet + 1; 
     let value = input.value.trim() === '' ? undefined : parseInt(input.value.trim());
 
     if (value !== undefined && (value < 0 || value > maxInputGames)) {
@@ -597,17 +696,84 @@ function handleScoreChange(event) {
     match.scores[setIndex][scorePosition] = value;
 
     const matchResult = checkMatchWinner(match);
+    const winnerBefore = match.winner;
     match.winner = matchResult.winner;
     
-    if (match.winner) {
+    if (match.winner && !winnerBefore) {
+        // Solo si el partido acaba de terminar
+        if (match.stage && match.stage !== 'Group') { 
+            // updateNextPlayoffMatch(match); 
+        }
         renderMatches(); 
         showStatus(`🏆 Match complete! Winner: ${match.winner}`, "green");
     } else {
         showStatus(`📝 Score updated. Current sets: ${getSetsScoreString(match)}`, "indigo");
+        reRenderMatchCard(match); 
     }
 
-    reRenderMatchCard(match); 
     saveData(true);
+}
+
+/**
+ * Renderiza la sección de Partidos (Grupos o Playoff) y Standings.
+ */
+function renderMatches() {
+    if (!groupMatchesContainer || !playoffContainer || !standingsContainer) return; 
+    
+    groupMatchesContainer.innerHTML = ''; 
+    playoffContainer.innerHTML = '';
+    standingsContainer.innerHTML = ''; 
+    
+    if (currentStage === 'group') {
+        // Renderizar partidos de grupo
+        if (matches.length > 0) {
+            groupMatchesContainer.innerHTML = matches.map(m => renderMatchCard(m)).join('');
+            groupMatchesContainer.insertAdjacentHTML('afterbegin', '<h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">3. Group Matches (Round Robin)</h2>');
+        } else {
+             groupMatchesContainer.innerHTML = '<p class="text-lg text-gray-500">Press "Generate Group Matches" to start the tournament.</p>';
+        }
+
+        const standingsData = calculateStandings();
+        renderStandings(standingsData); 
+        
+        const groupMatchesCompleted = matches.every(m => m.winner !== null);
+        const hasSufficientPlayers = players.length >= 4;
+
+        if (groupMatchesCompleted && hasSufficientPlayers) {
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'mt-6 pt-4 border-t';
+            btnContainer.innerHTML = `
+                <button id="btn-generate-playoff"
+                    class="w-full py-3 rounded-xl text-white font-extrabold transition duration-150 bg-green-600 hover:bg-green-700">
+                    🥇 Generate Playoff Bracket
+                </button>
+            `;
+            standingsContainer.appendChild(btnContainer);
+            document.getElementById('btn-generate-playoff')?.addEventListener('click', () => {
+                generatePlayoffStructure(standingsData);
+                renderMatches();
+            });
+        }
+
+    } else if (currentStage === 'playoff') {
+        renderPlayoffs();
+    }
+
+    addEventListeners();
+}
+
+function addEventListeners() {
+    // Escucha cambios en los scores
+    document.querySelectorAll('.set-score-input').forEach(input => {
+        input.removeEventListener('change', handleScoreChange);
+        input.addEventListener('change', handleScoreChange);
+    });
+    
+    // Escucha el botón de añadir set
+    document.querySelectorAll('.btn-add-set').forEach(button => {
+        button.removeEventListener('click', handleAddSet);
+        button.addEventListener('click', handleAddSet);
+    });
 }
 
 
@@ -630,7 +796,7 @@ window.loadAndInitializeLogic = async function() {
     updateConfigUI(); 
     renderMatches(); 
 
-    // 2. GESTORES DE EVENTOS GLOBALES (Configuración y Jugadores)
+    // 2. GESTORES DE EVENTOS GLOBALES
     document.querySelectorAll('[data-config-key]').forEach(element => {
         element.removeEventListener('change', handleConfigChange);
         element.addEventListener('change', handleConfigChange);
@@ -640,11 +806,15 @@ window.loadAndInitializeLogic = async function() {
         }
     });
 
+    // GESTORES DE EVENTOS DE FOTOS
+    document.getElementById('btn-upload-photo')?.addEventListener('click', () => {
+        document.getElementById('photo-upload-input').click();
+    });
+    document.getElementById('photo-upload-input')?.addEventListener('change', handlePhotoUpload);
+
     document.getElementById('btn-agregar-participante')?.addEventListener('click', handleAddPlayer);
     document.getElementById('btn-generate-matches')?.addEventListener('click', handleGenerateMatches);
     document.getElementById('btn-borrar-datos')?.addEventListener('click', handleResetTournament);
-    
-    // document.getElementById('load-tournament-form')?.addEventListener('submit', handleLoadTournament); // Recuperar si lo necesitas
     
     showTournamentId(window.userId);
 };
