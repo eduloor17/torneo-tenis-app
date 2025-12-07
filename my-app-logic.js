@@ -13,17 +13,19 @@ let playoffMatches = [];
 
 // Entry point (called after DOMContentLoaded and Firebase setup)
 window.loadAndInitializeLogic = function () {
-  console.log("🎾 App logic initialized");
-  loadData();
-  setupUI();
-  updateUI();
-  
-  // Force a save to cloud if we are in cloud mode and starting fresh
-  if (window.isCloudMode) saveData(true); 
+    console.log("🎾 App logic initialized");
+    loadData();
+    setupUI();
+    updateUI();
+    
+    // Force a save to cloud if we are in cloud mode and starting fresh
+    if (window.isCloudMode) saveData(true); 
 };
 
 // FIX: Wait for the entire HTML document to load before running initialization logic
 document.addEventListener("DOMContentLoaded", () => {
+    // Only run loadAndInitializeLogic here if we are NOT in cloud mode (i.e., no Firebase setup needed)
+    // If in cloud mode, it's called after Firebase initialization completes.
     if (!window.isCloudMode && typeof window.loadAndInitializeLogic === 'function') {
         window.loadAndInitializeLogic();
     }
@@ -34,36 +36,36 @@ document.addEventListener("DOMContentLoaded", () => {
 // UI SETUP
 // ---------------------------
 function setupUI() {
-  // DOM elements
-  const maxInput = document.getElementById("max-jugadores-input");
-  const groupInput = document.getElementById("num-grupos-input");
-  const gamesPerSetInput = document.getElementById("max-games-set-input"); 
-  const btnSetMax = document.getElementById("btn-configurar-max");
-  const btnSetGroups = document.getElementById("btn-configurar-grupos");
-  const btnSetGames = document.getElementById("btn-configurar-juegos"); 
-  const addPlayerBtn = document.getElementById("btn-agregar-participante");
-  const playerNameInput = document.getElementById("nombre-input");
-  const matchTypeSelector = document.getElementById("match-type");
-  const startBtn = document.getElementById("btn-generate-matches");
-  const loadForm = document.getElementById("load-tournament-form");
-  const externalIdInput = document.getElementById("external-id-input");
-  const resetBtn = document.getElementById("btn-borrar-datos");
-  
-  // Aseguramos que el input de la UI refleje el valor por defecto
-  if (gamesPerSetInput) gamesPerSetInput.value = maxGamesPerSet;
+    // DOM elements
+    const maxInput = document.getElementById("max-jugadores-input");
+    const groupInput = document.getElementById("num-grupos-input");
+    const gamesPerSetInput = document.getElementById("max-games-set-input"); 
+    const btnSetMax = document.getElementById("btn-configurar-max");
+    const btnSetGroups = document.getElementById("btn-configurar-grupos");
+    const btnSetGames = document.getElementById("btn-configurar-juegos"); 
+    const addPlayerBtn = document.getElementById("btn-agregar-participante");
+    const playerNameInput = document.getElementById("nombre-input");
+    const matchTypeSelector = document.getElementById("match-type");
+    const startBtn = document.getElementById("btn-generate-matches");
+    const loadForm = document.getElementById("load-tournament-form");
+    const externalIdInput = document.getElementById("external-id-input");
+    const resetBtn = document.getElementById("btn-borrar-datos");
+    
+    // Aseguramos que el input de la UI refleje el valor por defecto
+    if (gamesPerSetInput) gamesPerSetInput.value = maxGamesPerSet;
 
-  // --- Match Type Selector Handler ---
-  if (matchTypeSelector) {
-    matchTypeSelector.value = mode;
-    matchTypeSelector.addEventListener("change", (e) => {
-      mode = e.target.value;
-      saveData(true);
-      showStatus(`🎾 Mode changed to: ${mode.toUpperCase()}`, "green");
-    });
-  }
-  
-  // --- Set Games Per Set Button Handler (NEW) ---
-  if (btnSetGames) {
+    // --- Match Type Selector Handler ---
+    if (matchTypeSelector) {
+        matchTypeSelector.value = mode;
+        matchTypeSelector.addEventListener("change", (e) => {
+            mode = e.target.value;
+            saveData(true);
+            showStatus(`🎾 Mode changed to: ${mode.toUpperCase()}`, "green");
+        });
+    }
+    
+    // --- Set Games Per Set Button Handler (NEW) ---
+    if (btnSetGames) {
         btnSetGames.addEventListener("click", () => {
             const newMaxGames = parseInt(gamesPerSetInput.value);
             const msg = document.getElementById("set-games-message");
@@ -80,8 +82,8 @@ function setupUI() {
         });
     }
 
-  // --- Set Max Button Handler ---
-  if (btnSetMax) {
+    // --- Set Max Button Handler ---
+    if (btnSetMax) {
         btnSetMax.addEventListener("click", () => {
             const newMax = parseInt(maxInput.value);
             const msg = document.getElementById("set-max-message");
@@ -102,8 +104,8 @@ function setupUI() {
         });
     }
 
-  // --- Set Groups Button Handler ---
-  if (btnSetGroups) {
+    // --- Set Groups Button Handler ---
+    if (btnSetGroups) {
         btnSetGroups.addEventListener("click", () => {
             const newGroups = parseInt(groupInput.value);
             const msg = document.getElementById("set-group-message");
@@ -120,8 +122,8 @@ function setupUI() {
         });
     }
 
-  // --- Add Player Button Handler ---
-  if (addPlayerBtn) {
+    // --- Add Player Button Handler ---
+    if (addPlayerBtn) {
         addPlayerBtn.addEventListener("click", () => {
             const name = playerNameInput.value.trim();
             if (!name) return;
@@ -136,59 +138,59 @@ function setupUI() {
         });
     }
 
-  // --- Generate Matches Button Handler ---
-  if (startBtn) {
-    startBtn.addEventListener("click", () => {
-      if (players.length < maxPlayers) {
-        alert(`You need ${maxPlayers - players.length} more players to generate matches.`);
-        return;
-      }
+    // --- Generate Matches Button Handler ---
+    if (startBtn) {
+        startBtn.addEventListener("click", () => {
+            if (players.length < maxPlayers) {
+                alert(`You need ${maxPlayers - players.length} more players to generate matches.`);
+                return;
+            }
 
-      generateMatches();
-      saveData(true);
-      showStatus("✅ Matches generated. Scroll down to see the groups and matches.", "green");
-    });
-  }
-  
-  // --- Load Tournament Handler ---
-  if (loadForm) {
-      loadForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const externalId = externalIdInput.value.trim();
-        if (externalId) {
-            window.userId = externalId;
-            localStorage.setItem("current-tournament-id", externalId);
-            loadData(true); 
-        }
-      });
-  }
-  
-  // --- Reset Tournament Handler ---
-  if (resetBtn) {
-      resetBtn.addEventListener("click", () => {
-        // Clear all local data
-        localStorage.removeItem("tournament-data");
-        localStorage.removeItem("current-tournament-id");
-        
-        // Generate a new unique ID for a fresh tournament
-        window.userId = crypto.randomUUID(); 
-        
-        // Reset local state
-        players = [];
-        maxPlayers = 10;
-        numGroups = 2;
-        mode = "singles";
-        maxGamesPerSet = 6; 
-        setsToWinMatch = 1; // Reset to default 1 set to win
-        matches = [];
-        playoffMatches = []; 
-        
-        updateUI();
-        renderMatches(); // Clear match display
-        saveData(true); 
-        showStatus("🗑️ Tournament reset. Starting a new Cloud session.", "red");
-      });
-  }
+            generateMatches();
+            saveData(true);
+            showStatus("✅ Matches generated. Scroll down to see the groups and matches.", "green");
+        });
+    }
+    
+    // --- Load Tournament Handler ---
+    if (loadForm) {
+        loadForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const externalId = externalIdInput.value.trim();
+            if (externalId) {
+                window.userId = externalId;
+                localStorage.setItem("current-tournament-id", externalId);
+                loadData(true); 
+            }
+        });
+    }
+    
+    // --- Reset Tournament Handler ---
+    if (resetBtn) {
+        resetBtn.addEventListener("click", () => {
+            // Clear all local data
+            localStorage.removeItem("tournament-data");
+            localStorage.removeItem("current-tournament-id");
+            
+            // Generate a new unique ID for a fresh tournament
+            window.userId = crypto.randomUUID(); 
+            
+            // Reset local state
+            players = [];
+            maxPlayers = 10;
+            numGroups = 2;
+            mode = "singles";
+            maxGamesPerSet = 6; 
+            setsToWinMatch = 1; // Reset to default 1 set to win
+            matches = [];
+            playoffMatches = []; 
+            
+            updateUI();
+            renderMatches(); // Clear match display
+            saveData(true); 
+            showStatus("🗑️ Tournament reset. Starting a new Cloud session.", "red");
+        });
+    }
 }
 
 // ---------------------------
@@ -200,8 +202,9 @@ async function saveData(saveToCloud = false) {
     const matchesToSave = JSON.parse(JSON.stringify(matches)).map(m => {
         m.scores = m.scores.map(setScore => {
             // Convert set score array [p1Games, p2Games] to a string "p1Games-p2Games"
-            const p1 = setScore[0] !== undefined ? setScore[0] : '';
-            const p2 = setScore[1] !== undefined ? setScore[1] : '';
+            // Handle undefined or null scores (for unplayed sets)
+            const p1 = (setScore[0] !== undefined && setScore[0] !== null) ? setScore[0] : '';
+            const p2 = (setScore[1] !== undefined && setScore[1] !== null) ? setScore[1] : '';
             return `${p1}-${p2}`;
         });
         return m;
@@ -210,8 +213,8 @@ async function saveData(saveToCloud = false) {
     // Deep copy and transform playoffMatches
     const playoffMatchesToSave = JSON.parse(JSON.stringify(playoffMatches)).map(m => {
         m.scores = m.scores.map(setScore => {
-            const p1 = setScore[0] !== undefined ? setScore[0] : '';
-            const p2 = setScore[1] !== undefined ? setScore[1] : '';
+            const p1 = (setScore[0] !== undefined && setScore[0] !== null) ? setScore[0] : '';
+            const p2 = (setScore[1] !== undefined && setScore[1] !== null) ? setScore[1] : '';
             return `${p1}-${p2}`;
         });
         return m;
@@ -247,215 +250,211 @@ async function saveData(saveToCloud = false) {
 }
 
 async function loadData(loadFromCloud = false) {
-  let data = {};
-  
-  if (loadFromCloud && window.isCloudMode && window.db) {
-    // Attempt to load from Cloud
-    try {
-      const docRef = window.doc(window.db, "tournaments", window.userId);
-      const docSnap = await window.getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        data = docSnap.data();
-        showStatus(`🌐 Loaded Tournament ID: ${window.userId.substring(0, 8)}...`, "blue");
-      } else {
-        showStatus(`⚠️ Cloud ID '${window.userId.substring(0, 8)}...' not found. Loading local data.`, "red");
-      }
-    } catch (e) {
-      console.error("Error loading document from cloud:", e);
-      showStatus("❌ Error loading from cloud. Check console.", "red");
+    let data = {};
+    
+    if (loadFromCloud && window.isCloudMode && window.db) {
+        // Attempt to load from Cloud
+        try {
+            const docRef = window.doc(window.db, "tournaments", window.userId);
+            const docSnap = await window.getDoc(docRef);
+            
+            if (docSnap.exists()) {
+                data = docSnap.data();
+                showStatus(`🌐 Loaded Tournament ID: ${window.userId.substring(0, 8)}...`, "blue");
+            } else {
+                showStatus(`⚠️ Cloud ID '${window.userId.substring(0, 8)}...' not found. Loading local data.`, "red");
+            }
+        } catch (e) {
+            console.error("Error loading document from cloud:", e);
+            showStatus("❌ Error loading from cloud. Check console.", "red");
+        }
+    } 
+
+    // If cloud load failed or we are in local mode, load from local storage
+    if (Object.keys(data).length === 0) {
+        data = JSON.parse(localStorage.getItem("tournament-data") || "{}");
+        if (Object.keys(data).length > 0) {
+            showStatus("💾 Loaded data from local storage.", "gray");
+        }
     }
-  } 
 
-  // If cloud load failed or we are in local mode, load from local storage
-  if (Object.keys(data).length === 0) {
-    data = JSON.parse(localStorage.getItem("tournament-data") || "{}");
-    if (Object.keys(data).length > 0) {
-        showStatus("💾 Loaded data from local storage.", "gray");
+    // Update global state
+    if (data.players) players = data.players;
+    if (data.maxPlayers) maxPlayers = data.maxPlayers;
+    if (data.numGroups) numGroups = data.numGroups;
+    if (data.mode) mode = data.mode;
+    maxGamesPerSet = data.maxGamesPerSet !== undefined ? data.maxGamesPerSet : 6;
+    setsToWinMatch = data.setsToWinMatch !== undefined ? data.setsToWinMatch : 1; 
+
+    // --- REVERTIR LA TRANSFORMACIÓN DE SCORES (Convertir "p1-p2" string a [p1, p2] array) ---
+    const transformScores = (dataMatches) => {
+        return dataMatches.map(m => {
+            m.scores = m.scores.map(setScoreString => {
+                const parts = setScoreString.split('-');
+                // Convert to number or undefined/null if empty string
+                const p1Games = parts[0] !== '' ? parseInt(parts[0]) : undefined;
+                const p2Games = parts[1] !== '' ? parseInt(parts[1]) : undefined;
+                return [p1Games, p2Games];
+            });
+            return m;
+        });
+    };
+    
+    if (data.matches) {
+        matches = transformScores(data.matches);
     }
-  }
 
-  // Update global state
-  if (data.players) players = data.players;
-  if (data.maxPlayers) maxPlayers = data.maxPlayers;
-  if (data.numGroups) numGroups = data.numGroups;
-  if (data.mode) mode = data.mode;
-  maxGamesPerSet = data.maxGamesPerSet !== undefined ? data.maxGamesPerSet : 6;
-  setsToWinMatch = data.setsToWinMatch !== undefined ? data.setsToWinMatch : 1; 
+    if (data.playoffMatches) {
+        playoffMatches = transformScores(data.playoffMatches);
+    }
+    // ---------------------------------------------
 
-  // --- REVERTIR LA TRANSFORMACIÓN DE SCORES (Convertir "p1-p2" string a [p1, p2] array) ---
-  if (data.matches) {
-      matches = data.matches.map(m => {
-          m.scores = m.scores.map(setScoreString => {
-              const parts = setScoreString.split('-');
-              // Use empty string check for compatibility with old "undefined" state
-              const p1Games = parts[0] !== '' ? parseInt(parts[0]) : undefined;
-              const p2Games = parts[1] !== '' ? parseInt(parts[1]) : undefined;
-              return [p1Games, p2Games];
-          });
-          return m;
-      });
-  }
-
-  if (data.playoffMatches) {
-      playoffMatches = data.playoffMatches.map(m => {
-          m.scores = m.scores.map(setScoreString => {
-              const parts = setScoreString.split('-');
-              const p1Games = parts[0] !== '' ? parseInt(parts[0]) : undefined;
-              const p2Games = parts[1] !== '' ? parseInt(parts[1]) : undefined;
-              return [p1Games, p2Games];
-          });
-          return m;
-      });
-  }
-  // ---------------------------------------------
-
-  updateUI();
-  renderMatches(); 
-  
-  // Save back to ensure local storage reflects the current cloud/local state
-  saveData();
+    updateUI();
+    renderMatches(); 
+    
+    // Save back to ensure local storage reflects the current cloud/local state
+    saveData();
 }
 
 // ---------------------------
 // UI UPDATES
 // ---------------------------
 function updateUI() {
-  // Update Max Players displays
-  document.getElementById("max-jugadores-actual").textContent = maxPlayers;
-  document.getElementById("max-participantes-display").textContent = maxPlayers;
+    // Update Max Players displays
+    document.getElementById("max-jugadores-actual").textContent = maxPlayers;
+    document.getElementById("max-participantes-display").textContent = maxPlayers;
 
-  // Update Group count display
-  const numGroupsDisplay = document.getElementById("num-grupos-actual");
-  if (numGroupsDisplay) numGroupsDisplay.textContent = numGroups;
-  
-  // Update Max Games Per Set display (NEW)
-  const maxGamesDisplay = document.getElementById("max-games-set-actual");
-  if (maxGamesDisplay) maxGamesDisplay.textContent = maxGamesPerSet;
-  const gamesPerSetInput = document.getElementById("max-games-set-input");
-  if (gamesPerSetInput) gamesPerSetInput.value = maxGamesPerSet; // Ensure input field also reflects current value
+    // Update Group count display
+    const numGroupsDisplay = document.getElementById("num-grupos-actual");
+    if (numGroupsDisplay) numGroupsDisplay.textContent = numGroups;
+    
+    // Update Max Games Per Set display (NEW)
+    const maxGamesDisplay = document.getElementById("max-games-set-actual");
+    if (maxGamesDisplay) maxGamesDisplay.textContent = maxGamesPerSet;
+    const gamesPerSetInput = document.getElementById("max-games-set-input");
+    if (gamesPerSetInput) gamesPerSetInput.value = maxGamesPerSet; // Ensure input field also reflects current value
 
-  // Display Tournament ID
-  const idDisplay = document.getElementById("tournament-id-display");
-  if (idDisplay) {
-    const isCloud = window.isCloudMode ? '🌐 Cloud ID' : '💻 Local ID';
-    idDisplay.innerHTML = `<p class="text-xs text-gray-500">${isCloud}:</p><p class="font-bold text-sm text-indigo-700">${window.userId.substring(0, 8)}...</p>`;
-  }
+    // Display Tournament ID
+    const idDisplay = document.getElementById("tournament-id-display");
+    if (idDisplay) {
+        const isCloud = window.isCloudMode ? '🌐 Cloud ID' : '💻 Local ID';
+        idDisplay.innerHTML = `<p class="text-xs text-gray-500">${isCloud}:</p><p class="font-bold text-sm text-indigo-700">${window.userId.substring(0, 8)}...</p>`;
+    }
 
-  // Update Player Counter displays
-  document.getElementById("contador-participantes").textContent = players.length;
-  document.getElementById("contador-participantes-list").textContent = players.length;
+    // Update Player Counter displays
+    document.getElementById("contador-participantes").textContent = players.length;
+    document.getElementById("contador-participantes-list").textContent = players.length;
 
-  // Update Player List
-  const list = document.getElementById("lista-participantes");
-  list.innerHTML = "";
-  players.forEach((p) => {
-    const li = document.createElement("li");
-    li.textContent = p;
-    list.appendChild(li);
-  });
+    // Update Player List
+    const list = document.getElementById("lista-participantes");
+    list.innerHTML = "";
+    players.forEach((p) => {
+        const li = document.createElement("li");
+        li.textContent = p;
+        list.appendChild(li);
+    });
 
-  // Update "Generate Matches" button state
-  const startBtn = document.getElementById("btn-generate-matches");
-  if (startBtn) { 
-    if (players.length === maxPlayers) {
-      startBtn.disabled = false;
-      startBtn.classList.remove("opacity-50", "cursor-not-allowed");
-      startBtn.textContent = "🎾 Generate Random Matches";
-    } else {
-      startBtn.disabled = true;
-      startBtn.classList.add("opacity-50", "cursor-not-allowed");
-      startBtn.textContent = `🎾 Generate Random Matches (Need ${maxPlayers - players.length} more)`;
-    }
-  }
-  
-  // Update match type selector
-  const matchTypeSelector = document.getElementById("match-type");
-  if (matchTypeSelector) matchTypeSelector.value = mode;
+    // Update "Generate Matches" button state
+    const startBtn = document.getElementById("btn-generate-matches");
+    if (startBtn) { 
+        if (players.length === maxPlayers) {
+            startBtn.disabled = false;
+            startBtn.classList.remove("opacity-50", "cursor-not-allowed");
+            startBtn.textContent = "🎾 Generate Random Matches";
+        } else {
+            startBtn.disabled = true;
+            startBtn.classList.add("opacity-50", "cursor-not-allowed");
+            startBtn.textContent = `🎾 Generate Random Matches (Need ${maxPlayers - players.length} more)`;
+        }
+    }
+    
+    // Update match type selector
+    const matchTypeSelector = document.getElementById("match-type");
+    if (matchTypeSelector) matchTypeSelector.value = mode;
 }
 
 function showStatus(message, color = "blue") {
-  const div = document.createElement("div");
-  div.textContent = message;
-  div.className = `mt-3 text-${color}-600 text-sm font-semibold`;
-  
-  // Get the element where messages are displayed (Load Message area)
-  const messageArea = document.getElementById("load-message");
-  if (messageArea) {
-    messageArea.innerHTML = ''; // Clear previous message
-    messageArea.appendChild(div);
-  }
-  
-  setTimeout(() => div.remove(), 4000);
+    const div = document.createElement("div");
+    div.textContent = message;
+    div.className = `mt-3 text-${color}-600 text-sm font-semibold`;
+    
+    // Get the element where messages are displayed (Load Message area)
+    const messageArea = document.getElementById("load-message");
+    if (messageArea) {
+        messageArea.innerHTML = ''; // Clear previous message
+        messageArea.appendChild(div);
+    }
+    
+    setTimeout(() => div.remove(), 4000);
 }
 
 // ---------------------------
 // MATCH GENERATION & RENDERING
 // ---------------------------
 function generateMatches() {
-  matches = [];
-  playoffMatches = []; 
+    matches = [];
+    playoffMatches = []; 
 
-  if (players.length % numGroups !== 0) {
-    showStatus(`⚠️ Cannot generate matches. Total players (${players.length}) must be divisible by number of groups (${numGroups}).`, "red");
-    return;
-  }
-  
-  // Establecer a 1 set para ganar en la fase de grupos (Pro Set)
-  setsToWinMatch = 1;
-  saveData(false); // Update local setting
+    if (players.length % numGroups !== 0) {
+        showStatus(`⚠️ Cannot generate matches. Total players (${players.length}) must be divisible by number of groups (${numGroups}).`, "red");
+        return;
+    }
+    
+    // Establecer a 1 set para ganar en la fase de grupos (Pro Set)
+    setsToWinMatch = 1;
+    saveData(false); // Update local setting
 
-  const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
-  const playersPerGroup = players.length / numGroups;
-  const groups = [];
-  for (let i = 0; i < numGroups; i++) {
-    groups.push(shuffledPlayers.slice(i * playersPerGroup, (i + 1) * playersPerGroup));
-  }
+    const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+    const playersPerGroup = players.length / numGroups;
+    const groups = [];
+    for (let i = 0; i < numGroups; i++) {
+        groups.push(shuffledPlayers.slice(i * playersPerGroup, (i + 1) * playersPerGroup));
+    }
 
-  if (mode === "singles") {
-    groups.forEach((group, groupIndex) => {
-      for (let i = 0; i < group.length; i++) {
-        for (let j = i + 1; j < group.length; j++) {
-          matches.push({ 
-            id: crypto.randomUUID(),
-            type: "singles", 
-            group: groupIndex + 1,
-            p1: group[i], 
-            p2: group[j],
-            winner: null, 
-            // scores is an array of set scores [ [p1_set1, p2_set1], ... ]
-            scores: [[undefined, undefined]], 
-          });
-        }
-      }
-    });
-  } else {
-    groups.forEach((group, groupIndex) => {
-      const teams = [];
-      // Group players into teams of 2
-      for (let i = 0; i < group.length; i += 2) {
-        teams.push([group[i], group[i + 1]]);
-      }
-      
-      // Generate matches between teams
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-          matches.push({
-            id: crypto.randomUUID(),
-            type: "doubles",
-            group: groupIndex + 1,
-            p1: teams[i], // Array of 2 players
-            p2: teams[j], // Array of 2 players
-            winner: null,
-            // scores is an array of set scores
-            scores: [[undefined, undefined]], 
-          });
-        }
-      }
-    });
-  }
+    if (mode === "singles") {
+        groups.forEach((group, groupIndex) => {
+            for (let i = 0; i < group.length; i++) {
+                for (let j = i + 1; j < group.length; j++) {
+                    matches.push({ 
+                        id: crypto.randomUUID(),
+                        type: "singles", 
+                        group: groupIndex + 1,
+                        p1: group[i], 
+                        p2: group[j],
+                        winner: null, 
+                        // scores is an array of set scores [ [p1_set1, p2_set1], ... ]
+                        scores: [[undefined, undefined]], 
+                    });
+                }
+            }
+        });
+    } else {
+        groups.forEach((group, groupIndex) => {
+            const teams = [];
+            // Group players into teams of 2
+            for (let i = 0; i < group.length; i += 2) {
+                teams.push([group[i], group[i + 1]]);
+            }
+            
+            // Generate matches between teams
+            for (let i = 0; i < teams.length; i++) {
+                for (let j = i + 1; j < teams.length; j++) {
+                    matches.push({
+                        id: crypto.randomUUID(),
+                        type: "doubles",
+                        group: groupIndex + 1,
+                        p1: teams[i], // Array of 2 players
+                        p2: teams[j], // Array of 2 players
+                        winner: null,
+                        // scores is an array of set scores
+                        scores: [[undefined, undefined]], 
+                    });
+                }
+            }
+        });
+    }
 
-  renderMatches(); 
+    renderMatches(); 
 }
 
 // Generates the 3rd Place Match and Final based on group phase rankings (using team names)
@@ -570,7 +569,7 @@ function renderMatches() {
 
     container.innerHTML = html;
     
-    // Attach Event Listeners to group match inputs
+    // Attach Event Listeners to inputs
     document.querySelectorAll('.set-score-input').forEach(input => {
         input.addEventListener('input', handleScoreChange);
     });
@@ -646,10 +645,13 @@ function renderSetScoreRow(match, pKey, name, inputClass) {
         
         // Max score input should be the set limit + 1 (for the X-(X-1) case in an X-game set)
         const maxInputGames = maxGamesPerSet + 1; 
+        
+        // FIX: Ensure 'value' is a number or empty string to avoid "null" warning on type=number input
+        const inputValue = (games !== undefined && games !== null) ? games : ''; 
 
         return `
             <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-500 text-center">
-                <input type="number" min="0" max="${maxInputGames}" value="${games !== undefined ? games : ''}" 
+                <input type="number" min="0" max="${maxInputGames}" value="${inputValue}" 
                        data-match-id="${match.id}" data-player="${pKey}" data-set-index="${setIndex}"
                        class="${inputClass} set-score-input w-14 p-1 border border-gray-300 rounded-md text-center text-sm focus:ring-indigo-500 ${isDisabled ? 'bg-gray-200 cursor-not-allowed' : ''}"
                        ${isDisabled ? 'disabled' : ''}>
@@ -684,7 +686,7 @@ function getSetsScoreString(match) {
             p2Sets++;
         }
 
-        if (p1Games === undefined || p2Games === undefined) return '-'; 
+        if (p1Games === undefined || p2Games === undefined || p1Games === null || p2Games === null) return '-'; 
         return `${p1Games}-${p2Games}`;
     }).join(', ');
     
@@ -793,8 +795,9 @@ function checkSetWinner(setScore) {
     const max = maxGamesPerSet;
     const p1Games = setScore[0];
     const p2Games = setScore[1];
-
-    if (p1Games === undefined || p2Games === undefined) return null;
+    
+    // Check for null or undefined before comparison
+    if (p1Games === undefined || p2Games === undefined || p1Games === null || p2Games === null) return null;
 
     const diff = Math.abs(p1Games - p2Games);
 
@@ -806,8 +809,7 @@ function checkSetWinner(setScore) {
     } 
     
     // Rule 2: Win at max-(max-1) (e.g., 6-5 after a tiebreak for a 6-game set, or 8-7 for an 8-game set)
-    // The previous rule covers scores like 6-0, 6-1, 6-2, 6-3, 7-5, 8-6, etc.
-    // This rule is usually for the tiebreak case, assuming max is the target.
+    // This typically signifies a tiebreak win in a short set format.
     else if (p1Games === max && p2Games === max - 1) {
         return 'p1';
     } else if (p2Games === max && p1Games === max - 1) {
