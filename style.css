@@ -1,7 +1,7 @@
 :root {
     --primary-color: #007bff;
-    --secondary-color: #6c757d; /* Gris para botones secundarios */
-    --delete-color: #dc3545; /* Rojo para el botón de eliminar */
+    --secondary-color: #6c757d; 
+    --delete-color: #dc3545; 
     --background-color: #f8f9fa;
     --card-background: #ffffff;
     --text-color: #343a40;
@@ -81,7 +81,7 @@ select {
     border: 1px solid var(--border-color);
     border-radius: 4px;
     margin-top: 5px;
-    font-family: monospace; /* Para que el ID se vea claro */
+    font-family: monospace; 
     font-size: 1.1em;
 }
 
@@ -146,4 +146,13 @@ input[type="radio"] {
     font-size: 0.9em;
     color: #6c757d;
     margin-top: 5px;
+}
+
+/* Estilo para los partidos en el marcador */
+.match-card {
+    border: 1px solid var(--border-color);
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    background-color: #f0f0f0;
 }
