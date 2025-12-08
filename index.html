@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎾 Configuración de Torneo de Tenis</title>
+    <title>🎾 Precision Tennis Scores</title>
     <link rel="stylesheet" href="style.css">
     
     <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
@@ -74,7 +74,7 @@
         </section>
 
         <button id="startGameBtn" class="primary-btn">Crear y Obtener ID</button>
-        <button id="showManagerBtn" class="secondary-btn">Ya tengo un ID</button>
+        <button id="showManagerBtn" class="secondary-btn">Ya tengo un ID / Gestionar</button>
     </main>
     
     <main id="managerScreen" class="config-container" style="display:none;">
@@ -82,12 +82,12 @@
 
         <section id="newIdSection" class="section-card" style="display:none;">
             <h3>✅ Torneo Creado</h3>
-            <p>Comparte este ID con tus amigos para sincronizar el marcador:</p>
+            <p>Comparte este ID con tus amigos para sincronizar:</p>
             <div class="input-group">
                 <input type="text" id="currentTournamentIdDisplay" readonly>
                 <button id="copyIdBtn" class="secondary-btn" style="width: 100%; margin-top: 10px;">Copiar ID</button>
             </div>
-            <button id="openCreatedTournamentBtn" class="primary-btn">Abrir Marcador (Simulación)</button>
+            <button id="openCreatedTournamentBtn" class="primary-btn">Abrir Marcador</button>
         </section>
 
         <section class="section-card">
@@ -100,6 +100,20 @@
             <button id="deleteTournamentBtn" class="delete-btn">Eliminar Torneo Actual</button>
             <button id="backToConfigBtn" class="secondary-btn" style="width: 100%; margin-top: 20px;">← Volver a Configuración</button>
         </section>
+    </main>
+
+    <main id="scoreScreen" class="config-container" style="display:none;">
+        <h2 id="scoreTitle">🎾 Marcador del Torneo</h2>
+        <p>ID Activo: <strong id="activeTournamentId"></strong></p>
+        
+        <section class="section-card">
+            <h3>Partidos de la Fase de Grupos</h3>
+            <div id="matchesContainer">
+                <p style="text-align: center; color: #6c757d;">Cargando partidos...</p>
+            </div>
+        </section>
+
+        <button id="backToManagerBtn" class="secondary-btn">← Volver a Gestión de Torneos</button>
     </main>
 
     <script type="module" src="./my-app-logic.js"></script>
