@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+// Importaciones completas de Firestore, incluyendo updateDoc para actualizar marcadores
 import { getFirestore, collection, addDoc, doc, getDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // *** TU CONFIGURACIÓN DE FIREBASE INSERTADA AQUÍ ***
@@ -101,14 +102,19 @@ function renderMatches(tournamentId, matches) {
     
     if (matches && matches.length > 0) {
         matches.forEach(match => {
+            const scoreData = JSON.stringify(match.score);
+            
             htmlContent += `
                 <div class="match-card">
                     <h4>GRUPO ${match.group}</h4>
                     <p><strong>${match.player1.name}</strong> vs <strong>${match.player2.name}</strong></p>
-                    <p>Estado: ${match.status} | Sets Jugados: ${match.score.set1[0]}-${match.score.set1[1]}, ${match.score.set2[0]}-${match.score.set2[1]}</p>
+                    <p>Estado: ${match.status} | Marcador: ${match.score.set1[0]}-${match.score.set1[1]}, ${match.score.set2[0]}-${match.score.set2[1]}</p>
                     
-                    <button class="primary-btn update-score-btn" data-match-id="${match.id}" 
-                            data-p1-name="${match.player1.name}" data-p2-name="${match.player2.name}"
+                    <button class="primary-btn update-score-btn" 
+                            data-match-id="${match.id}" 
+                            data-p1-name="${match.player1.name}" 
+                            data-p2-name="${match.player2.name}"
+                            data-score='${scoreData}'
                             style="padding: 5px; width: auto; margin-top: 5px;">
                         Actualizar Marcador
                     </button>
@@ -126,36 +132,36 @@ function renderMatches(tournamentId, matches) {
 
     matchesContainer.innerHTML = htmlContent;
 
-    // Añadir Listener de clic a todos los botones después de renderizar
+    // ESTO ES CLAVE: Reasignar el listener después de actualizar el DOM.
     document.querySelectorAll('.update-score-btn').forEach(button => {
         button.addEventListener('click', toggleScoreForm);
     });
 }
 
 /**
- * Genera el HTML para el formulario de sets.
+ * Genera el HTML para el formulario de sets, usando los valores actuales del partido.
  */
-function createScoreFormHTML(matchId, p1Name, p2Name) {
+function createScoreFormHTML(matchId, p1Name, p2Name, currentScore) {
     return `
         <h4>Actualizar Sets</h4>
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
             <div style="flex: 1;">
                 <label for="set1-p1-${matchId}">${p1Name} (Set 1)</label>
-                <input type="number" id="set1-p1-${matchId}" min="0" value="0">
+                <input type="number" id="set1-p1-${matchId}" min="0" value="${currentScore.set1[0]}">
             </div>
             <div style="flex: 1;">
                 <label for="set1-p2-${matchId}">${p2Name} (Set 1)</label>
-                <input type="number" id="set1-p2-${matchId}" min="0" value="0">
+                <input type="number" id="set1-p2-${matchId}" min="0" value="${currentScore.set1[1]}">
             </div>
         </div>
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
             <div style="flex: 1;">
                 <label for="set2-p1-${matchId}">${p1Name} (Set 2)</label>
-                <input type="number" id="set2-p1-${matchId}" min="0" value="0">
+                <input type="number" id="set2-p1-${matchId}" min="0" value="${currentScore.set2[0]}">
             </div>
             <div style="flex: 1;">
                 <label for="set2-p2-${matchId}">${p2Name} (Set 2)</label>
-                <input type="number" id="set2-p2-${matchId}" min="0" value="0">
+                <input type="number" id="set2-p2-${matchId}" min="0" value="${currentScore.set2[1]}">
             </div>
         </div>
         
@@ -171,11 +177,12 @@ function toggleScoreForm(event) {
     const matchId = button.dataset.matchId;
     const p1Name = button.dataset.p1Name;
     const p2Name = button.dataset.p2Name;
+    const scoreData = JSON.parse(button.dataset.score); // LEER DATOS ACTUALES
     const formContainer = document.getElementById(`scoreUpdateForm-${matchId}`);
 
     if (formContainer.style.display === 'none') {
         // Mostrar formulario
-        formContainer.innerHTML = createScoreFormHTML(matchId, p1Name, p2Name);
+        formContainer.innerHTML = createScoreFormHTML(matchId, p1Name, p2Name, scoreData); // PASAR DATOS
         formContainer.style.display = 'block';
 
         // Añadir listener al nuevo botón "Guardar Puntuación"
@@ -279,10 +286,10 @@ function showScreen(screenId) {
 }
 
 function getTournamentConfiguration() {
-    const matchMode = document.querySelector('input[name="matchType"]:checked').value; // OBTENER MODO
+    const matchMode = document.querySelector('input[name="matchType"]:checked').value; 
     
     const config = {
-        matchMode: matchMode, // PASAR MODO
+        matchMode: matchMode, 
         numPlayers: parseInt(numPlayersInput.value),
         numGroups: parseInt(document.getElementById('numGroups').value),
         gamesPerSet: parseInt(document.getElementById('gamesPerSet').value),
@@ -360,7 +367,7 @@ async function handleStartGame() {
         }));
 
         const tournamentData = {
-            matchMode: config.matchMode, // Guardamos el modo
+            matchMode: config.matchMode, 
             numPlayers: config.numPlayers,
             numGroups: config.numGroups,
             gamesPerSet: config.gamesPerSet,
