@@ -1,158 +1,196 @@
-:root {
-    --primary-color: #007bff;
-    --secondary-color: #6c757d; 
-    --delete-color: #dc3545; 
-    --background-color: #f8f9fa;
-    --card-background: #ffffff;
-    --text-color: #343a40;
-    --border-color: #dee2e6;
-}
-
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
 body {
-    font-family: 'Arial', sans-serif;
-    background-color: var(--background-color);
-    color: var(--text-color);
-    line-height: 1.6;
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background-color: #f4f4f9;
+    color: #333;
 }
 
-header {
-    background-color: var(--primary-color);
-    color: white;
-    padding: 20px 0;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+/* CONTENEDOR DE ENCABEZADO para alinear título y botón de reset */
+#header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; 
+    margin-bottom: 20px;
 }
 
 h1 {
-    font-size: 2em;
+    color: #004d99;
+    margin: 0;
 }
 
-.config-container {
-    max-width: 800px;
-    margin: 30px auto;
+h2, h3 {
+    color: #004d99;
+}
+
+section {
+    margin-bottom: 30px;
     padding: 20px;
-}
-
-h2 {
-    color: var(--primary-color);
-    border-bottom: 2px solid var(--primary-color);
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-.section-card {
-    background-color: var(--card-background);
-    border: 1px solid var(--border-color);
+    background-color: #fff;
     border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-h3 {
-    color: var(--secondary-color);
-    margin-bottom: 15px;
-    border-left: 5px solid var(--secondary-color);
-    padding-left: 10px;
-}
-
-.input-group {
-    margin-bottom: 15px;
-}
-
-.input-group label {
-    display: block;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-input[type="number"],
-input[type="text"],
-select {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-top: 5px;
-    font-family: monospace; 
-    font-size: 1.1em;
-}
-
-input[type="radio"] {
-    margin-right: 5px;
-}
-
-.player-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
-}
-
-.player-input-item {
-    padding: 10px;
-    border: 1px dashed var(--border-color);
-    border-radius: 4px;
-}
-
-/* Estilos de botones */
-.primary-btn, .secondary-btn, .delete-btn {
-    display: block;
-    width: 100%;
-    padding: 15px;
-    border: none;
-    border-radius: 4px;
-    font-size: 1.1em;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    margin-top: 10px;
-}
-
-.primary-btn {
-    background-color: var(--primary-color);
+/* --- ESTILOS GENERALES DE BOTONES --- */
+button {
+    padding: 10px 15px;
+    background-color: #007bff;
     color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: background-color 0.3s;
 }
 
-.primary-btn:hover {
+button:hover:not(:disabled) {
     background-color: #0056b3;
 }
 
-.secondary-btn {
-    background-color: var(--secondary-color);
-    color: white;
+.danger-btn { 
+    background-color: #dc3545;
 }
 
-.secondary-btn:hover {
-    background-color: #5a6268;
-}
-
-.delete-btn {
-    background-color: var(--delete-color);
-    color: white;
-}
-
-.delete-btn:hover {
+.danger-btn:hover:not(:disabled) {
     background-color: #c82333;
 }
 
-.hint, .read-only {
-    font-size: 0.9em;
-    color: #6c757d;
-    margin-top: 5px;
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6; /* Hago la opacidad más visible para deshabilitado */
 }
 
-/* Estilo para los partidos en el marcador */
-.match-card {
-    border: 1px solid var(--border-color);
+input[type="text"], input[type="number"], select { /* Agrego 'select' si lo usas */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+/* --- ESTILOS ESPECÍFICOS DE LISTAS Y GRUPOS --- */
+#lista-participantes {
+    list-style: none;
+    padding: 0;
+}
+
+#lista-participantes li {
+    background: #e9ecef;
+    margin: 5px 0;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+#grupos-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.grupo-box {
+    flex: 1;
     padding: 15px;
-    margin-bottom: 10px;
-    border-radius: 6px;
-    background-color: #f0f0f0;
+    border: 1px solid #004d99;
+    border-radius: 5px;
+}
+
+
+/* --- ESTILOS DE LA TABLA DE PARTIDOS Y STANDINGS --- */
+.match-card {
+    /* Estilo básico de la tarjeta de partido */
+    border: 1px solid #ddd;
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.match-card.completed {
+    /* Resaltado visual para partidos terminados */
+    border: 3px solid #28a745; /* Borde verde */
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
+}
+
+.ranking-table, #playoffs table, .match-card table { /* Aplica a todas las tablas de resultados */
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.ranking-table th, .ranking-table td, #playoffs th, #playoffs td, .match-card th, .match-card td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+    font-size: 14px; /* Ajuste para espacio */
+}
+
+.ranking-table th, .match-card th {
+    background-color: #f2f2f2;
+}
+
+
+/* --- ESTILOS DE INPUTS DE SCORE Y BOTONES RÁPIDOS (CLAVE) --- */
+
+.set-score-input {
+    width: 50px; /* Tamaño del input de juegos */
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 14px;
+}
+
+/* Contenedor del input + botón rápido para el set activo */
+.match-card td > div.flex {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px; /* space-y-1 en Tailwind */
+}
+
+.btn-quick-set-win {
+    /* Estilo del botón de Quick Win */
+    background-color: #28a745; /* Verde */
+    color: white;
+    padding: 2px 4px;
+    font-size: 10px; /* Texto más pequeño */
+    border-radius: 3px;
+    width: 100%; /* Ocupa el ancho disponible */
+    margin-left: 0; /* Anula el margin-left del botón general */
+}
+
+.btn-quick-set-win:hover:not(:disabled) {
+    background-color: #1e7e34;
+}
+
+.btn-add-set {
+    /* Estilo del botón de añadir set (ej. Tailwind bg-indigo-500) */
+    background-color: #6610f2;
+    padding: 5px 10px;
+    font-size: 12px;
+    margin-left: 0;
+}
+
+.btn-add-set:hover:not(:disabled) {
+    background-color: #5107d3;
+}
+
+/* Clase de color que usa el JS */
+.text-indigo-600 {
+    color: #6610f2;
+}
+.text-green-700 {
+    color: #1e7e34;
+}
+.text-gray-500 {
+    color: #6c757d;
+}
+
+/* Flex para la fila de botones/estado */
+.match-card .mt-3.flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 5px;
+    border-top: 1px solid #eee;
 }
