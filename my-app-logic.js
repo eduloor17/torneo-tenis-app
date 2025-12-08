@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-// Importaciones completas de Firestore, incluyendo updateDoc para actualizar marcadores
 import { getFirestore, collection, addDoc, doc, getDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // *** TU CONFIGURACIÓN DE FIREBASE INSERTADA AQUÍ ***
@@ -132,7 +131,7 @@ function renderMatches(tournamentId, matches) {
 
     matchesContainer.innerHTML = htmlContent;
 
-    // ESTO ES CLAVE: Reasignar el listener después de actualizar el DOM.
+    // CLAVE: Reasignar el listener después de actualizar el DOM.
     document.querySelectorAll('.update-score-btn').forEach(button => {
         button.addEventListener('click', toggleScoreForm);
     });
@@ -177,12 +176,12 @@ function toggleScoreForm(event) {
     const matchId = button.dataset.matchId;
     const p1Name = button.dataset.p1Name;
     const p2Name = button.dataset.p2Name;
-    const scoreData = JSON.parse(button.dataset.score); // LEER DATOS ACTUALES
+    const scoreData = JSON.parse(button.dataset.score); 
     const formContainer = document.getElementById(`scoreUpdateForm-${matchId}`);
 
     if (formContainer.style.display === 'none') {
         // Mostrar formulario
-        formContainer.innerHTML = createScoreFormHTML(matchId, p1Name, p2Name, scoreData); // PASAR DATOS
+        formContainer.innerHTML = createScoreFormHTML(matchId, p1Name, p2Name, scoreData); 
         formContainer.style.display = 'block';
 
         // Añadir listener al nuevo botón "Guardar Puntuación"
@@ -248,7 +247,7 @@ async function handleScoreUpdate(event) {
         
         // 4. Actualizar el documento en Firebase
         await updateDoc(docRef, {
-            matches: matches // Sobreescribe la lista de partidos con la lista actualizada
+            matches: matches 
         });
         
         alert(`✅ Puntuación del partido ${matchId} actualizada correctamente.`);
@@ -314,6 +313,7 @@ function getTournamentConfiguration() {
  * Genera los inputs de jugador/equipo, ajustando el label según el modo de juego.
  */
 function generatePlayerInputs() {
+    // CLAVE: Leer el valor del radio button seleccionado
     const matchMode = document.querySelector('input[name="matchType"]:checked').value;
     const numPlayers = parseInt(numPlayersInput.value);
     playerInputsContainer.innerHTML = '';
@@ -472,17 +472,20 @@ function handleCopyId() {
 // --- LISTENERS DE EVENTOS ---
 // ------------------------------------------------------------------
 
-// Listener clave para actualizar los inputs si se cambia el modo de juego
+// CLAVE: Este listener regenera los inputs cuando se cambia entre 'single' y 'double'.
 document.querySelectorAll('input[name="matchType"]').forEach(input => {
     input.addEventListener('change', generatePlayerInputs);
 });
 
+// Listener para cambiar el número de inputs
 numPlayersInput.addEventListener('input', generatePlayerInputs);
 
+// Listeners de navegación y gestión
 document.getElementById('showManagerBtn').addEventListener('click', () => showScreen('manager'));
 document.getElementById('backToConfigBtn').addEventListener('click', () => showScreen('config'));
 document.getElementById('backToManagerBtn').addEventListener('click', () => showScreen('manager'));
 
+// Listeners de acciones principales
 startGameBtn.addEventListener('click', handleStartGame);
 document.getElementById('copyIdBtn').addEventListener('click', handleCopyId);
 document.getElementById('openCreatedTournamentBtn').addEventListener('click', handleOpenTournament); 
@@ -490,8 +493,8 @@ document.getElementById('openTournamentBtn').addEventListener('click', handleOpe
 document.getElementById('deleteTournamentBtn').addEventListener('click', handleDeleteTournament);
 
 
-// Inicializar la configuración de jugadores y mostrar la pantalla inicial
+// Inicialización
 document.addEventListener('DOMContentLoaded', () => {
-    generatePlayerInputs();
+    generatePlayerInputs(); // Genera los inputs iniciales (por defecto, Individual)
     showScreen('config');
 });
