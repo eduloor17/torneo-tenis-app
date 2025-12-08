@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-// Importar doc y deleteDoc para la gestión de documentos individuales
 import { getFirestore, collection, addDoc, doc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // *** TU CONFIGURACIÓN DE FIREBASE INSERTADA AQUÍ ***
@@ -21,6 +20,9 @@ const db = getFirestore(app);
 // --- ELEMENTOS DEL DOM ---
 const configScreen = document.getElementById('configScreen');
 const managerScreen = document.getElementById('managerScreen');
+const scoreScreen = document.getElementById('scoreScreen');
+const matchesContainer = document.getElementById('matchesContainer');
+const activeTournamentIdDisplay = document.getElementById('activeTournamentId');
 const newIdSection = document.getElementById('newIdSection');
 const numPlayersInput = document.getElementById('numPlayers');
 const playerInputsContainer = document.getElementById('playerInputs');
@@ -28,11 +30,10 @@ const startGameBtn = document.getElementById('startGameBtn');
 const tournamentIdInput = document.getElementById('tournamentIdInput');
 const currentTournamentIdDisplay = document.getElementById('currentTournamentIdDisplay');
 
-// --- UTILIDADES ---
+// ------------------------------------------------------------------
+// --- UTILIDADES Y LÓGICA DE PARTIDOS ---
+// ------------------------------------------------------------------
 
-/**
- * Función Fisher-Yates para barajar (shuffle) un array.
- */
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -40,9 +41,6 @@ function shuffleArray(array) {
     }
 }
 
-/**
- * Asigna jugadores a grupos de forma equitativa y cíclica.
- */
 function assignPlayersToGroups(players, numGroups) {
     if (numGroups < 1 || players.length === 0) return players;
 
@@ -63,11 +61,81 @@ function assignPlayersToGroups(players, numGroups) {
     });
 }
 
-/**
- * Recolecta toda la configuración del torneo desde el formulario.
- */
+function generateGroupMatches(players) {
+    const matches = [];
+    const groups = {};
+
+    players.forEach(player => {
+        if (!groups[player.group]) {
+            groups[player.group] = [];
+        }
+        groups[player.group].push(player);
+    });
+
+    for (const groupName in groups) {
+        const groupPlayers = groups[groupName];
+        for (let i = 0; i < groupPlayers.length; i++) {
+            for (let j = i + 1; j < groupPlayers.length; j++) {
+                matches.push({
+                    id: `${groupPlayers[i].id}_vs_${groupPlayers[j].id}_${Date.now() + i + j}`,
+                    player1: { id: groupPlayers[i].id, name: groupPlayers[i].name },
+                    player2: { id: groupPlayers[j].id, name: groupPlayers[j].name },
+                    group: groupName,
+                    round: 1, 
+                    status: 'pending',
+                    score: { set1: [0, 0], set2: [0, 0], set3: [0, 0] } 
+                });
+            }
+        }
+    }
+    return matches;
+}
+
+function renderMatches(tournamentId, matches) {
+    activeTournamentIdDisplay.textContent = tournamentId;
+    
+    let htmlContent = '';
+    
+    if (matches && matches.length > 0) {
+        matches.forEach(match => {
+            htmlContent += `
+                <div class="match-card">
+                    <h4>GRUPO ${match.group}</h4>
+                    <p><strong>${match.player1.name}</strong> vs <strong>${match.player2.name}</strong></p>
+                    <p>Estado: ${match.status} | Sets: ${match.score.set1[0]}-${match.score.set1[1]}</p>
+                    <button class="primary-btn" data-match-id="${match.id}" style="padding: 5px; width: auto; margin-top: 5px;">Actualizar Marcador</button>
+                    <hr style="margin-top: 10px; border-color: #eee;">
+                </div>
+            `;
+        });
+    } else {
+        htmlContent = '<p style="text-align: center; color: red;">No se pudieron generar partidos. Verifique la configuración de participantes y grupos.</p>';
+    }
+
+    matchesContainer.innerHTML = htmlContent;
+}
+
+
+// ------------------------------------------------------------------
+// --- MANEJO DE VISTAS Y CONFIGURACIÓN ---
+// ------------------------------------------------------------------
+
+function showScreen(screenId) {
+    configScreen.style.display = 'none';
+    managerScreen.style.display = 'none';
+    scoreScreen.style.display = 'none';
+
+    if (screenId === 'config') {
+        configScreen.style.display = 'block';
+        newIdSection.style.display = 'none'; 
+    } else if (screenId === 'manager') {
+        managerScreen.style.display = 'block';
+    } else if (screenId === 'score') {
+        scoreScreen.style.display = 'block';
+    }
+}
+
 function getTournamentConfiguration() {
-    // ... (Esta función permanece igual) ...
     const config = {
         matchMode: document.querySelector('input[name="matchType"]:checked').value,
         numPlayers: parseInt(numPlayersInput.value),
@@ -84,36 +152,39 @@ function getTournamentConfiguration() {
         config.players.push({
             id: `p${index + 1}`, 
             name: nameInput.value.trim() || `Participante ${index + 1}`,
-            // Eliminamos la referencia a photoFile ya que no es un objeto JSON válido
         });
     });
 
     return config;
 }
 
-// ------------------------------------------------------------------
-// --- MANEJO DE VISTAS ---
-// ------------------------------------------------------------------
+function generatePlayerInputs() {
+    const numPlayers = parseInt(numPlayersInput.value);
+    playerInputsContainer.innerHTML = '';
 
-function showScreen(screenId) {
-    configScreen.style.display = 'none';
-    managerScreen.style.display = 'none';
+    if (numPlayers < 2) {
+        playerInputsContainer.innerHTML = '<p style="color:red;">Mínimo 2 participantes.</p>';
+        return;
+    }
 
-    if (screenId === 'config') {
-        configScreen.style.display = 'block';
-        newIdSection.style.display = 'none'; // Ocultar el ID recién creado
-    } else if (screenId === 'manager') {
-        managerScreen.style.display = 'block';
+    for (let i = 1; i <= numPlayers; i++) {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-input-item';
+        playerDiv.innerHTML = `
+            <label for="player-${i}-name">Participante ${i}:</label>
+            <input type="text" id="player-${i}-name" name="player-${i}-name" placeholder="Nombre/Equipo ${i}" required>
+            <label for="player-${i}-photo">Foto (Opcional):</label>
+            <input type="file" id="player-${i}-photo" name="player-${i}-photo" accept="image/*">
+        `;
+        playerInputsContainer.appendChild(playerDiv);
     }
 }
 
+
 // ------------------------------------------------------------------
-// --- ACCIONES DE TORNEO ---
+// --- ACCIONES DE FIREBASE ---
 // ------------------------------------------------------------------
 
-/**
- * Crea un nuevo torneo, lo guarda en Firebase y muestra el ID.
- */
 async function handleStartGame() {
     const config = getTournamentConfiguration();
 
@@ -127,6 +198,7 @@ async function handleStartGame() {
 
     try {
         const playersWithGroups = assignPlayersToGroups(config.players, config.numGroups);
+        const groupMatches = generateGroupMatches(playersWithGroups);
 
         const playersToSave = playersWithGroups.map(player => ({
             id: player.id,
@@ -137,8 +209,13 @@ async function handleStartGame() {
         }));
 
         const tournamentData = {
-            // ... (Datos del torneo)
+            matchMode: config.matchMode,
+            numPlayers: config.numPlayers,
+            numGroups: config.numGroups,
+            gamesPerSet: config.gamesPerSet,
+            superTieBreak: config.superTieBreak,
             players: playersToSave, 
+            matches: groupMatches,
             currentPhase: 'Grupos', 
             status: 'Activo',
             createdAt: new Date(),
@@ -147,12 +224,16 @@ async function handleStartGame() {
         const docRef = await addDoc(collection(db, "tournaments"), tournamentData);
         const tournamentId = docRef.id;
 
-        // Mostrar el ID y cambiar a la vista de gestión
+        // 1. Mostrar ID en el manager
         currentTournamentIdDisplay.value = tournamentId;
-        tournamentIdInput.value = tournamentId; // Precargar el input de Abrir/Eliminar
+        tournamentIdInput.value = tournamentId; 
         newIdSection.style.display = 'block';
-        showScreen('manager');
-        alert(`¡Torneo Creado! Comparte el ID: ${tournamentId}`);
+
+        // 2. Renderizar y mostrar el marcador inmediatamente
+        renderMatches(tournamentId, groupMatches);
+        showScreen('score');
+        
+        alert(`✅ Torneo creado con ID: ${tournamentId}. Partidos generados.`);
 
     } catch (e) {
         console.error("FIREBASE ERROR:", e);
@@ -163,9 +244,6 @@ async function handleStartGame() {
     }
 }
 
-/**
- * Abre un torneo existente. (Simulación: En una app real, redirigirías).
- */
 async function handleOpenTournament() {
     const id = tournamentIdInput.value.trim();
     if (!id) {
@@ -178,11 +256,16 @@ async function handleOpenTournament() {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-            console.log("Torneo cargado con éxito:", docSnap.data());
-            alert(`✅ Torneo "${id}" encontrado. (Simulación de apertura del marcador)`);
+            const data = docSnap.data();
+            console.log("Torneo cargado con éxito:", data);
+
+            // 1. Renderizar los partidos cargados desde Firebase
+            renderMatches(id, data.matches); 
             
-            // Aquí iría la lógica para cargar la interfaz de marcador real.
-            // window.location.href = `marcador.html?id=${id}`;
+            // 2. Mostrar la pantalla del marcador
+            showScreen('score');
+
+            alert(`✅ Torneo ${id} abierto.`);
         } else {
             alert(`❌ Error: No se encontró ningún torneo con el ID: ${id}`);
         }
@@ -192,9 +275,6 @@ async function handleOpenTournament() {
     }
 }
 
-/**
- * Elimina el torneo con el ID actual o introducido.
- */
 async function handleDeleteTournament() {
     const id = tournamentIdInput.value.trim();
     if (!id) {
@@ -213,7 +293,6 @@ async function handleDeleteTournament() {
         alert(`🗑️ Torneo con ID ${id} eliminado con éxito.`);
         console.log(`Torneo ${id} eliminado.`);
         
-        // Limpiar y volver a la pantalla de configuración
         tournamentIdInput.value = '';
         showScreen('config');
 
@@ -223,9 +302,6 @@ async function handleDeleteTournament() {
     }
 }
 
-/**
- * Copia el ID del torneo al portapapeles.
- */
 function handleCopyId() {
     const id = currentTournamentIdDisplay.value;
     if (id) {
@@ -238,6 +314,7 @@ function handleCopyId() {
     }
 }
 
+
 // ------------------------------------------------------------------
 // --- LISTENERS DE EVENTOS ---
 // ------------------------------------------------------------------
@@ -245,6 +322,7 @@ function handleCopyId() {
 // Botones de Vistas
 document.getElementById('showManagerBtn').addEventListener('click', () => showScreen('manager'));
 document.getElementById('backToConfigBtn').addEventListener('click', () => showScreen('config'));
+document.getElementById('backToManagerBtn').addEventListener('click', () => showScreen('manager'));
 
 // Lógica de Configuración y Creación
 numPlayersInput.addEventListener('input', generatePlayerInputs);
@@ -252,7 +330,7 @@ startGameBtn.addEventListener('click', handleStartGame);
 
 // Lógica de Gestión de Torneos
 document.getElementById('copyIdBtn').addEventListener('click', handleCopyId);
-document.getElementById('openCreatedTournamentBtn').addEventListener('click', handleOpenTournament); // El botón de Abrir en la sección "Nuevo ID"
+document.getElementById('openCreatedTournamentBtn').addEventListener('click', handleOpenTournament); 
 document.getElementById('openTournamentBtn').addEventListener('click', handleOpenTournament);
 document.getElementById('deleteTournamentBtn').addEventListener('click', handleDeleteTournament);
 
