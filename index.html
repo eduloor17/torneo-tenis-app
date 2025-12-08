@@ -1,121 +1,124 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎾 Precision Tennis Scores</title>
-    <link rel="stylesheet" href="style.css">
-    
-    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎾 Precision Tennis Scores</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
 </head>
 <body>
-    <header>
-        <h1>🎾 Precision Tennis Scores</h1>
-    </header>
+    <header>
+        <h1>🎾 Precision Tennis Scores</h1>
+    </header>
 
-    <main id="configScreen" class="config-container">
-        <h2>Configuración del Torneo</h2>
+    <main id="configScreen" class="config-container">
+        <h2>Configuración del Torneo</h2>
 
-        <section class="section-card">
-            <h3>Modo de Juego</h3>
-            <div class="input-group">
-                <label>
-                    <input type="radio" name="matchType" value="single" checked> Individual (Single)
-                </label>
-                <label>
-                    <input type="radio" name="matchType" value="double"> Dobles (Double)
-                </label>
-            </div>
-        </section>
+        <section class="section-card">
+            <h3>1. Modo de Juego</h3>
+            <div class="input-group">
+                <label>
+                    <input type="radio" name="matchType" value="single" checked> Individual (Single)
+                </label>
+                <label>
+                    <input type="radio" name="matchType" value="double"> Dobles (Double)
+                </label>
+            </div>
+        </section>
 
-        <section class="section-card">
-            <h3>Jugadores/Equipos</h3>
-            <div class="input-group">
-                <label for="numPlayers">Número de Participantes/Equipos:</label>
-                <input type="number" id="numPlayers" min="2" value="8" required>
-            </div>
-            <div id="playerInputs" class="player-list">
-                </div>
-            <p class="hint">Puedes agregar **nombre** y una **foto** opcional para cada jugador/equipo.</p>
-        </section>
+                <section class="section-card">
+            <h3>2. Añadir Participantes/Equipos</h3>
+            <div class="input-group flex space-x-2">
+                <label for="nombre-input" id="player-input-label">Nombre del Participante:</label>
+                <input type="text" id="nombre-input" placeholder="Ej: Juan" class="flex-grow">
+                <button id="btn-agregar-participante" class="primary-btn flex-shrink-0">Agregar Participante</button>
+            </div>
+        </section>
 
-        <section class="section-card">
-            <h3>Estructura del Torneo</h3>
-            <div class="input-group">
-                <label for="numGroups">Número de Grupos (Ej: 8 equipos, 2 grupos):</label>
-                <input type="number" id="numGroups" min="1" value="2" required>
-            </div>
-        </section>
+        <section class="section-card">
+            <h3 id="list-header">Participantes Registrados (<span id="contador-participantes-list">0</span> de <span id="max-participantes-display">10</span>)</h3>
+            <ul id="lista-participantes" class="list-disc list-inside">
+            </ul>
+        </section>
+                <section class="section-card">
+            <h3>3. Estructura del Torneo</h3>
+            <div class="input-group">
+                <label for="numGroups">Número de Grupos (Ej: 8 equipos, 2 grupos):</label>
+                <input type="number" id="numGroups" min="1" value="2" required>
+            </div>
+        </section>
 
-        <section class="section-card">
-            <h3>Puntuación y Sets</h3>
-            <div class="input-group">
-                <label for="gamesPerSet">Juegos por Set (Ej: 6 o 4):</label>
-                <select id="gamesPerSet">
-                    <option value="6">6 Juegos</option>
-                    <option value="4">4 Juegos</option>
-                    <option value="8">8 Juegos</option>
-                </select>
-            </div>
-            <div class="input-group">
-                <label for="superTieBreak">Super Tie-Break (Para el set decisivo):</label>
-                <select id="superTieBreak">
-                    <option value="8">8 Puntos</option>
-                    <option value="4">4 Puntos</option>
-                    <option value="6">6 Puntos</option>
-                </select>
-            </div>
-            <div class="input-group">
-                <label>Sets Mínimos para Puestos 1-4:</label>
-                <p class="read-only">2 Sets mínimos (al mejor de 3 sets, por defecto).</p>
-            </div>
-        </section>
+        <section class="section-card">
+            <h3>4. Puntuación y Sets</h3>
+            <div class="input-group">
+                <label for="gamesPerSet">Juegos por Set (Ej: 6 o 4):</label>
+                <select id="gamesPerSet">
+                    <option value="6">6 Juegos</option>
+                    <option value="4">4 Juegos</option>
+                    <option value="8">8 Juegos</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="superTieBreak">Super Tie-Break (Para el set decisivo):</label>
+                <select id="superTieBreak">
+                    <option value="8">8 Puntos</option>
+                    <option value="4">4 Puntos</option>
+                    <option value="6">6 Puntos</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Sets Mínimos para Puestos 1-4:</label>
+                <p class="read-only">2 Sets mínimos (al mejor de 3 sets, por defecto).</p>
+            </div>
+        </section>
 
-        <button id="startGameBtn" class="primary-btn">Crear y Obtener ID</button>
-        <button id="showManagerBtn" class="secondary-btn">Ya tengo un ID / Gestionar</button>
-    </main>
-    
-    <main id="managerScreen" class="config-container" style="display:none;">
-        <h2>Gestión de Torneo</h2>
+        <button id="startGameBtn" class="primary-btn">Crear y Obtener ID</button>
+        <button id="showManagerBtn" class="secondary-btn">Ya tengo un ID / Gestionar</button>
+    </main>
+    
+    <main id="managerScreen" class="config-container" style="display:none;">
+        <h2>Gestión de Torneo</h2>
 
-        <section id="newIdSection" class="section-card" style="display:none;">
-            <h3>✅ Torneo Creado</h3>
-            <p>Comparte este ID con tus amigos para sincronizar:</p>
-            <div class="input-group">
-                <input type="text" id="currentTournamentIdDisplay" readonly>
-                <button id="copyIdBtn" class="secondary-btn" style="width: 100%; margin-top: 10px;">Copiar ID</button>
-            </div>
-            <button id="openCreatedTournamentBtn" class="primary-btn">Abrir Marcador</button>
-        </section>
+        <section id="newIdSection" class="section-card" style="display:none;">
+            <h3>✅ Torneo Creado</h3>
+            <p>Comparte este ID con tus amigos para sincronizar:</p>
+            <div class="input-group">
+                <input type="text" id="currentTournamentIdDisplay" readonly>
+                <button id="copyIdBtn" class="secondary-btn" style="width: 100%; margin-top: 10px;">Copiar ID</button>
+            </div>
+            <button id="openCreatedTournamentBtn" class="primary-btn">Abrir Marcador</button>
+        </section>
 
-        <section class="section-card">
-            <h3>Abrir o Eliminar Torneo</h3>
-            <div class="input-group">
-                <label for="tournamentIdInput">ID del Torneo:</label>
-                <input type="text" id="tournamentIdInput" placeholder="Pega el ID aquí">
-            </div>
-            <button id="openTournamentBtn" class="primary-btn">Abrir Torneo</button>
-            <button id="deleteTournamentBtn" class="delete-btn">Eliminar Torneo Actual</button>
-            <button id="backToConfigBtn" class="secondary-btn" style="width: 100%; margin-top: 20px;">← Volver a Configuración</button>
-        </section>
-    </main>
+        <section class="section-card">
+            <h3>Abrir o Eliminar Torneo</h3>
+            <div class="input-group">
+                <label for="tournamentIdInput">ID del Torneo:</label>
+                <input type="text" id="tournamentIdInput" placeholder="Pega el ID aquí">
+            </div>
+            <button id="openTournamentBtn" class="primary-btn">Abrir Torneo</button>
+            <button id="deleteTournamentBtn" class="delete-btn">Eliminar Torneo Actual</button>
+            <button id="backToConfigBtn" class="secondary-btn" style="width: 100%; margin-top: 20px;">← Volver a Configuración</button>
+        </section>
+    </main>
 
-    <main id="scoreScreen" class="config-container" style="display:none;">
-        <h2 id="scoreTitle">🎾 Marcador del Torneo</h2>
-        <p>ID Activo: <strong id="activeTournamentId"></strong></p>
-        
-        <section class="section-card">
-            <h3>Partidos de la Fase de Grupos</h3>
-            <div id="matchesContainer">
-                <p style="text-align: center; color: #6c757d;">Cargando partidos...</p>
-            </div>
-        </section>
+    <main id="scoreScreen" class="config-container" style="display:none;">
+        <h2 id="scoreTitle">🎾 Marcador del Torneo</h2>
+        <p>ID Activo: <strong id="activeTournamentId"></strong></p>
+        
+        <section class="section-card">
+            <h3>Partidos de la Fase de Grupos</h3>
+            <div id="matchesContainer">
+                <p style="text-align: center; color: #6c757d;">Cargando partidos...</p>
+            </div>
+        </section>
 
-        <button id="backToManagerBtn" class="secondary-btn">← Volver a Gestión de Torneos</button>
-    </main>
+        <button id="backToManagerBtn" class="secondary-btn">← Volver a Gestión de Torneos</button>
+    </main>
 
-    <script type="module" src="./my-app-logic.js"></script>
+    <script type="module" src="./my-app-logic.js"></script>
 </body>
 </html>
