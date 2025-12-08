@@ -1,6 +1,7 @@
 :root {
-    --primary-color: #007bff; /* Azul Tenis */
-    --secondary-color: #28a745; /* Verde Pelota */
+    --primary-color: #007bff;
+    --secondary-color: #6c757d; /* Gris para botones secundarios */
+    --delete-color: #dc3545; /* Rojo para el botón de eliminar */
     --background-color: #f8f9fa;
     --card-background: #ffffff;
     --text-color: #343a40;
@@ -80,6 +81,8 @@ select {
     border: 1px solid var(--border-color);
     border-radius: 4px;
     margin-top: 5px;
+    font-family: monospace; /* Para que el ID se vea claro */
+    font-size: 1.1em;
 }
 
 input[type="radio"] {
@@ -99,26 +102,44 @@ input[type="radio"] {
     border-radius: 4px;
 }
 
-.player-input-item input[type="file"] {
-    display: block;
-    margin-top: 5px;
-}
-
-.primary-btn {
+/* Estilos de botones */
+.primary-btn, .secondary-btn, .delete-btn {
     display: block;
     width: 100%;
     padding: 15px;
-    background-color: var(--primary-color);
-    color: white;
     border: none;
     border-radius: 4px;
     font-size: 1.1em;
     cursor: pointer;
     transition: background-color 0.3s ease;
+    margin-top: 10px;
+}
+
+.primary-btn {
+    background-color: var(--primary-color);
+    color: white;
 }
 
 .primary-btn:hover {
     background-color: #0056b3;
+}
+
+.secondary-btn {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.secondary-btn:hover {
+    background-color: #5a6268;
+}
+
+.delete-btn {
+    background-color: var(--delete-color);
+    color: white;
+}
+
+.delete-btn:hover {
+    background-color: #c82333;
 }
 
 .hint, .read-only {
