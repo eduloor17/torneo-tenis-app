@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-// Importaciones completas de Firestore, incluyendo updateDoc para actualizar marcadores
 import { getFirestore, collection, addDoc, doc, getDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // *** TU CONFIGURACIÓN DE FIREBASE INSERTADA AQUÍ ***
@@ -261,7 +260,7 @@ async function handleScoreUpdate(event) {
 
 
 // ------------------------------------------------------------------
-// --- MANEJO DE VISTAS Y ACCIONES PRINCIPALES ---
+// --- MANEJO DE VISTAS Y CONFIGURACIÓN ---
 // ------------------------------------------------------------------
 
 function showScreen(screenId) {
@@ -279,7 +278,63 @@ function showScreen(screenId) {
     }
 }
 
-// ... (getTournamentConfiguration, generatePlayerInputs, handleCopyId - se mantienen igual)
+function getTournamentConfiguration() {
+    const matchMode = document.querySelector('input[name="matchType"]:checked').value; // OBTENER MODO
+    
+    const config = {
+        matchMode: matchMode, // PASAR MODO
+        numPlayers: parseInt(numPlayersInput.value),
+        numGroups: parseInt(document.getElementById('numGroups').value),
+        gamesPerSet: parseInt(document.getElementById('gamesPerSet').value),
+        superTieBreak: parseInt(document.getElementById('superTieBreak').value),
+        players: []
+    };
+
+    const playerElements = playerInputsContainer.querySelectorAll('.player-input-item');
+    playerElements.forEach((div, index) => {
+        const nameInput = div.querySelector(`#player-${index + 1}-name`);
+
+        config.players.push({
+            id: `p${index + 1}`, 
+            name: nameInput.value.trim() || `Participante ${index + 1}`,
+        });
+    });
+
+    return config;
+}
+
+/**
+ * Genera los inputs de jugador/equipo, ajustando el label según el modo de juego.
+ */
+function generatePlayerInputs() {
+    const matchMode = document.querySelector('input[name="matchType"]:checked').value;
+    const numPlayers = parseInt(numPlayersInput.value);
+    playerInputsContainer.innerHTML = '';
+    
+    // Cambiar la etiqueta si es Dobles
+    const labelText = matchMode === 'double' ? 'Equipo' : 'Participante'; 
+
+    if (numPlayers < 2) {
+        playerInputsContainer.innerHTML = '<p style="color:red;">Mínimo 2 participantes/equipos.</p>';
+        return;
+    }
+
+    for (let i = 1; i <= numPlayers; i++) {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-input-item';
+        playerDiv.innerHTML = `
+            <label for="player-${i}-name">${labelText} ${i}:</label>
+            <input type="text" id="player-${i}-name" name="player-${i}-name" placeholder="${labelText} ${i}" required>
+            <label for="player-${i}-photo">Foto (Opcional):</label>
+            <input type="file" id="player-${i}-photo" name="player-${i}-photo" accept="image/*">
+        `;
+        playerInputsContainer.appendChild(playerDiv);
+    }
+}
+
+// ------------------------------------------------------------------
+// --- ACCIONES DE FIREBASE ---
+// ------------------------------------------------------------------
 
 async function handleStartGame() {
     const config = getTournamentConfiguration();
@@ -305,7 +360,7 @@ async function handleStartGame() {
         }));
 
         const tournamentData = {
-            matchMode: config.matchMode,
+            matchMode: config.matchMode, // Guardamos el modo
             numPlayers: config.numPlayers,
             numGroups: config.numGroups,
             gamesPerSet: config.gamesPerSet,
@@ -405,11 +460,16 @@ function handleCopyId() {
     }
 }
 
+
 // ------------------------------------------------------------------
 // --- LISTENERS DE EVENTOS ---
 // ------------------------------------------------------------------
 
-// Listeners para funciones definidas anteriormente
+// Listener clave para actualizar los inputs si se cambia el modo de juego
+document.querySelectorAll('input[name="matchType"]').forEach(input => {
+    input.addEventListener('change', generatePlayerInputs);
+});
+
 numPlayersInput.addEventListener('input', generatePlayerInputs);
 
 document.getElementById('showManagerBtn').addEventListener('click', () => showScreen('manager'));
