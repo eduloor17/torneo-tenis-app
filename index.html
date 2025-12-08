@@ -15,7 +15,7 @@
         <h1>🎾 Precision Tennis Scores</h1>
     </header>
 
-    <main class="config-container">
+    <main id="configScreen" class="config-container">
         <h2>Configuración del Torneo</h2>
 
         <section class="section-card">
@@ -51,7 +51,6 @@
 
         <section class="section-card">
             <h3>Puntuación y Sets</h3>
-
             <div class="input-group">
                 <label for="gamesPerSet">Juegos por Set (Ej: 6 o 4):</label>
                 <select id="gamesPerSet">
@@ -60,7 +59,6 @@
                     <option value="8">8 Juegos</option>
                 </select>
             </div>
-
             <div class="input-group">
                 <label for="superTieBreak">Super Tie-Break (Para el set decisivo):</label>
                 <select id="superTieBreak">
@@ -69,14 +67,39 @@
                     <option value="6">6 Puntos</option>
                 </select>
             </div>
-
             <div class="input-group">
                 <label>Sets Mínimos para Puestos 1-4:</label>
-                <p class="read-only">2 Sets mínimos (al mejor de 3 sets, por defecto en la lógica de la fase final).</p>
+                <p class="read-only">2 Sets mínimos (al mejor de 3 sets, por defecto).</p>
             </div>
         </section>
 
-        <button id="startGameBtn" class="primary-btn">Iniciar Torneo y Generar ID</button>
+        <button id="startGameBtn" class="primary-btn">Crear y Obtener ID</button>
+        <button id="showManagerBtn" class="secondary-btn">Ya tengo un ID</button>
+    </main>
+    
+    <main id="managerScreen" class="config-container" style="display:none;">
+        <h2>Gestión de Torneo</h2>
+
+        <section id="newIdSection" class="section-card" style="display:none;">
+            <h3>✅ Torneo Creado</h3>
+            <p>Comparte este ID con tus amigos para sincronizar el marcador:</p>
+            <div class="input-group">
+                <input type="text" id="currentTournamentIdDisplay" readonly>
+                <button id="copyIdBtn" class="secondary-btn" style="width: 100%; margin-top: 10px;">Copiar ID</button>
+            </div>
+            <button id="openCreatedTournamentBtn" class="primary-btn">Abrir Marcador (Simulación)</button>
+        </section>
+
+        <section class="section-card">
+            <h3>Abrir o Eliminar Torneo</h3>
+            <div class="input-group">
+                <label for="tournamentIdInput">ID del Torneo:</label>
+                <input type="text" id="tournamentIdInput" placeholder="Pega el ID aquí">
+            </div>
+            <button id="openTournamentBtn" class="primary-btn">Abrir Torneo</button>
+            <button id="deleteTournamentBtn" class="delete-btn">Eliminar Torneo Actual</button>
+            <button id="backToConfigBtn" class="secondary-btn" style="width: 100%; margin-top: 20px;">← Volver a Configuración</button>
+        </section>
     </main>
 
     <script type="module" src="./my-app-logic.js"></script>
