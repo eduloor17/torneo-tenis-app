@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎾 Configuración de Torneo de Tenis</title>
     <link rel="stylesheet" href="style.css">
+    
     <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
     <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
     <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
@@ -71,11 +72,11 @@
 
             <div class="input-group">
                 <label>Sets Mínimos para Puestos 1-4:</label>
-                <p class="read-only">2 Sets mínimos (Ej: al mejor de 3 sets, por defecto en la lógica).</p>
+                <p class="read-only">2 Sets mínimos (al mejor de 3 sets, por defecto en la lógica de la fase final).</p>
             </div>
         </section>
 
-        <button id="startGameBtn" class="primary-btn">Iniciar Torneo</button>
+        <button id="startGameBtn" class="primary-btn">Iniciar Torneo y Generar ID</button>
     </main>
 
     <script type="module" src="./my-app-logic.js"></script>
